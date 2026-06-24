@@ -523,6 +523,43 @@ export const syncLogs = pgTable(
   }),
 );
 
+export const sessions = pgTable(
+  "sessions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    user_id: uuid("user_id").notNull().references(() => serverUsers.id, { onDelete: 'cascade' }),
+    device_id: uuid("device_id").references(() => devices.id, { onDelete: 'set null' }),
+    refresh_token_hash: varchar("refresh_token_hash", { length: 255 }).notNull(),
+    access_token_jti: varchar("access_token_jti", { length: 255 }),
+    expires_at: timestamp("expires_at").notNull(),
+    last_activity_at: timestamp("last_activity_at").defaultNow().notNull(),
+    is_active: boolean("is_active").notNull().default(true),
+    created_at: timestamp("created_at").defaultNow().notNull(),
+    updated_at: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    user_idx: index("sessions_user_id_idx").on(table.user_id),
+    device_idx: index("sessions_device_id_idx").on(table.device_id),
+    active_idx: index("sessions_is_active_idx").on(table.is_active),
+  }),
+);
+
+export const revokedTokens = pgTable(
+  "revoked_tokens",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    token_jti: varchar("token_jti", { length: 255 }).notNull().unique(),
+    user_id: uuid("user_id").notNull().references(() => serverUsers.id, { onDelete: 'cascade' }),
+    revoked_at: timestamp("revoked_at").defaultNow().notNull(),
+    expires_at: timestamp("expires_at").notNull(),
+    reason: varchar("reason", { length: 100 }),
+  },
+  (table) => ({
+    jti_idx: uniqueIndex("revoked_tokens_jti_idx").on(table.token_jti),
+    user_idx: index("revoked_tokens_user_id_idx").on(table.user_id),
+  }),
+);
+
 export const serverSchema = {
   serverUsers,
   clinics,

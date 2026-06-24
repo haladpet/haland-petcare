@@ -180,7 +180,7 @@ export default function PrescriptionBuilder({ items, onChange }: PrescriptionBui
 
               {item.current_stock < item.quantity && (
                 <Badge variant="destructive" className="mb-2 text-xs">
-                  ⚠ Stock ({item.current_stock}) < requested ({item.quantity}) — will be validated at payment
+                  {`⚠ Stock (${item.current_stock}) < requested (${item.quantity}) — will be validated at payment`}
                 </Badge>
               )}
 
