@@ -314,10 +314,22 @@ function verifyDeviceSecretSignature(
     return false
   }
 
-  // Additional integrity check: the hash should be derived from
-  // a combination of deviceId and userId (enforced server-side)
-  // Here we just verify the format is valid
-  return true
+  // Verify the hash was derived from deviceId + userId combination
+  // This ensures the secret is bound to both the device and user
+  const expectedHash = createHash('sha256')
+    .update(deviceId + userId + getLocalDeviceSecret())
+    .digest('hex')
+
+  // The stored hash should match the expected derivation
+  // We use a timing-safe comparison to prevent timing attacks
+  const storedBuffer = Buffer.from(storedHash, 'hex')
+  const expectedBuffer = Buffer.from(expectedHash, 'hex')
+
+  if (storedBuffer.length !== expectedBuffer.length) {
+    return false
+  }
+
+  return timingSafeEqual(storedBuffer, expectedBuffer)
 }
 
 /**
