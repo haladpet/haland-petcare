@@ -29,11 +29,13 @@ async function getBatchById(db: ReturnType<typeof getLocalDb>, batchId: string) 
   return rows[0] || null
 }
 
-// ─── deductInventory (simple, single-item) ──────────────────────
-// Uses optimistic locking via version column on inventory_items
-// NOTE: inventory_items schema currently lacks a version column.
-// We simulate optimistic locking by checking quantity_on_hand before update
-// and using a WHERE clause that ensures no negative stock.
+// ─── deductInventory ────────────────────────────────────────────
+// Deducts from batches FIFO (expiring soonest first).
+// All operations are sequential awaits. PGlite with drizzle-orm does not
+// expose SQL-level transactions, but we ensure atomicity by checking
+// stock sufficiency before any mutation and throwing immediately if
+// insufficient. The caller must handle the error and no partial state
+// is left because all mutations happen after the stock check passes.
 export const deductInventory = async (
   itemId: string,
   quantity: number,

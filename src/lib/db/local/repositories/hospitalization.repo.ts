@@ -216,7 +216,7 @@ export const dischargePatient = async (
   await db
     .update(hospitalizations)
     .set({
-      discharge_date: now,
+      actual_discharge_date: now,
       status: 'DISCHARGED',
       notes: hosp[0].notes
         ? `${hosp[0].notes}\n--- Discharge Notes ---\n${dischargeNotes}`
@@ -272,7 +272,7 @@ export const dischargePatient = async (
 
   // Sync queue entries
   writeToSyncQueue('hospitalizations', hospitalizationId, 'UPDATE', {
-    discharge_date: now,
+    actual_discharge_date: now,
     status: 'DISCHARGED',
   })
   writeToSyncQueue('invoices', invoiceId, 'CREATE', {
@@ -297,7 +297,7 @@ export const dischargePatient = async (
   })
 
   return {
-    hospitalization: { ...hosp[0], status: 'DISCHARGED', discharge_date: now },
+    hospitalization: { ...hosp[0], status: 'DISCHARGED', actual_discharge_date: now },
     invoice: invoiceRecord,
     invoiceItems: createdItems,
     totalCost,

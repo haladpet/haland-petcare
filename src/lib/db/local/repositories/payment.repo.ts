@@ -80,22 +80,7 @@ export const processPayment = async (
     }
   })
 
-  // 4. For MEDICINE items, re-validate stock and deduct
-  // We need to find the medicine_id from the invoice item description
-  // Since invoice_items don't have medicine_id directly, we look up by matching
-  // the description against medicines
-  for (const rt of resolvedItemTypes) {
-    if (rt.type === 'MEDICINE' && rt.medicine_id) {
-      const currentStock = await getStock(rt.medicine_id)
-      if (currentStock < rt.quantity) {
-        throw new Error(`INSUFFICIENT_STOCK: medicine ${rt.medicine_id} has ${currentStock}, need ${rt.quantity}`)
-      }
-      // Deduct stock
-      await deductInventoryFIFO(rt.medicine_id, rt.quantity)
-    }
-  }
-
-  // 5. Insert payment record
+  // 5. Insert payment record FIRST
   const paymentId = uuidv4()
   const now = new Date()
   const newBalance = remaining - amount
@@ -122,6 +107,25 @@ export const processPayment = async (
       updated_at: now,
     })
     .where(eq(invoices.id, invoiceId))
+
+  // 4. For MEDICINE items, re-validate stock and deduct
+  // We need to find the medicine_id from the invoice item description
+  // Since invoice_items don't have medicine_id directly, we look up by matching
+  // the description against medicines
+  for (const rt of resolvedItemTypes) {
+    if (rt.type === 'MEDICINE' && rt.medicine_id) {
+      const currentStock = await getStock(rt.medicine_id)
+      if (currentStock < rt.quantity) {
+        // Rollback: delete the payment record we just inserted
+        await db.delete(payments).where(eq(payments.id, paymentId))
+        // Rollback: restore invoice status
+        await db.update(invoices).set({ status: invoice.status, updated_at: now }).where(eq(invoices.id, invoiceId))
+        throw new Error(`INSUFFICIENT_STOCK: medicine ${rt.medicine_id} has ${currentStock}, need ${rt.quantity}`)
+      }
+      // Deduct stock
+      await deductInventoryFIFO(rt.medicine_id, rt.quantity)
+    }
+  }
 
   // 7. Sync queue & audit
   writeToSyncQueue('payments', paymentId, 'CREATE', paymentRecord)

@@ -94,6 +94,7 @@ export const customers = pgTable(
     address: text("address"),
     status: varchar("status", { length: 50 }).notNull().default("ACTIVE"),
     metadata: jsonb("metadata"),
+    version: integer("version").notNull().default(1),
     created_at: timestamp("created_at").defaultNow().notNull(),
     updated_at: timestamp("updated_at").defaultNow().notNull(),
     deleted_at: timestamp("deleted_at"),
@@ -119,6 +120,7 @@ export const pets = pgTable(
     color: varchar("color", { length: 100 }),
     weight: decimal("weight", { precision: 10, scale: 2 }),
     status: varchar("status", { length: 50 }).notNull().default("ACTIVE"),
+    version: integer("version").notNull().default(1),
     created_at: timestamp("created_at").defaultNow().notNull(),
     updated_at: timestamp("updated_at").defaultNow().notNull(),
     deleted_at: timestamp("deleted_at"),
@@ -538,4 +540,6 @@ export const serverSchema = {
   syncQueue,
   conflictQueue,
   syncLogs,
+  sessions,
+  revokedTokens,
 } as const;
