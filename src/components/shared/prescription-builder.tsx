@@ -188,7 +188,6 @@ export default function PrescriptionBuilder({ items, onChange }: PrescriptionBui
                 <div>
                   <label className="text-xs text-muted-foreground">Dosage</label>
                   <Input
-                    size={1}
                     placeholder="e.g. 2x1"
                     value={item.dosage}
                     onChange={(e) => updateItem(item.medicine_id, 'dosage', e.target.value)}

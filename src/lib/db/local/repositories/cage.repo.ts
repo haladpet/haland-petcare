@@ -3,23 +3,21 @@ import { cages } from '@/lib/db/local/schema'
 import { v4 as uuidv4 } from 'uuid'
 import { writeToSyncQueue } from '@/lib/sync/queue'
 import { writeAuditLog } from '@/lib/db/server/audit'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, sql } from 'drizzle-orm'
 
 export const findAvailable = async (species?: string, size?: string) => {
   const db = getLocalDb()
-  let query = db.select().from(cages).where(eq(cages.status, 'AVAILABLE'))
+  const filters: any[] = [eq(cages.status, 'AVAILABLE')]
 
-  // If species/size filters provided, try to match by type
-  if (species || size) {
-    const filters: any[] = [eq(cages.status, 'AVAILABLE')]
-    if (species) {
-      // type field can store species info like 'DOG_SMALL', 'CAT_LARGE', etc.
-      // We do a loose match
-    }
-    query = db.select().from(cages).where(and(...filters))
+  // type field can store species/size info like 'DOG_SMALL', 'CAT_LARGE', etc.
+  if (species) {
+    filters.push(sql`${cages.type} ILIKE ${'%' + species + '%'}`)
+  }
+  if (size) {
+    filters.push(sql`${cages.type} ILIKE ${'%' + size + '%'}`)
   }
 
-  const results = await query.orderBy(cages.code)
+  const results = await db.select().from(cages).where(and(...filters)).orderBy(cages.code)
   return results
 }
 

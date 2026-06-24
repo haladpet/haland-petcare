@@ -9,6 +9,7 @@
 !.yarn/plugins
 !.yarn/releases
 !.yarn/versions
+/pglite-local-db
 
 # testing
 /coverage

@@ -1,0 +1,29 @@
+{
+  "name": "Haland PetCare",
+  "short_name": "PetCare",
+  "description": "Veterinary clinic management system with offline-first capabilities",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0f766e",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "health", "productivity"],
+  "lang": "id-ID",
+  "dir": "ltr",
+  "scope": "/",
+  "prefer_related_applications": false
+}
