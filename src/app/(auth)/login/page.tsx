@@ -41,16 +41,16 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="max-w-md mx-auto py-20">
+    <div className="max-w-md mx-auto py-20" data-testid="login-page">
       <h1 className="text-2xl font-semibold mb-4">Login</h1>
-      {!isOnline && <div className="mb-4 text-yellow-700">You are offline — offline login may be available.</div>}
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" className="w-full input" />
-        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" className="w-full input" />
-        <button disabled={loading} className="btn">
+      {!isOnline && <div className="mb-4 text-yellow-700" data-testid="offline-banner">You are offline — offline login may be available.</div>}
+      <form onSubmit={handleSubmit} className="space-y-4" data-testid="login-form">
+        <input data-testid="email-input" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" className="w-full input" />
+        <input data-testid="password-input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" className="w-full input" />
+        <button data-testid="login-submit-button" disabled={loading} className="btn">
           {loading ? 'Signing in...' : 'Sign in'}
         </button>
-        {error && <div className="text-red-600">{error}</div>}
+        {error && <div className="text-red-600" data-testid="login-error">{error}</div>}
       </form>
     </div>
   )

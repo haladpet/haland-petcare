@@ -1,0 +1,16 @@
+{
+  "name": "haland-petcare-load-tests",
+  "version": "1.0.0",
+  "private": true,
+  "description": "k6 load tests for Haland PetCare",
+  "scripts": {
+    "test:load:100": "k6 run --vus 100 --duration 60s load-test.js --out json=reports/results-100.json --out html=reports/report-100.html",
+    "test:load:1000": "k6 run --vus 1000 --duration 60s load-test.js --out json=reports/results-1000.json --out html=reports/report-1000.html",
+    "test:load:10000": "k6 run --vus 10000 --duration 60s load-test.js --out json=reports/results-10000.json --out html=reports/report-10000.html",
+    "test:load:all": "npm run test:load:100 && npm run test:load:1000 && npm run test:load:10000",
+    "test:load:ci": "k6 run --vus 100 --duration 30s load-test.js --out json=reports/results-ci.json --out html=reports/report-ci.html"
+  },
+  "dependencies": {
+    "k6": "^0.0.0"
+  }
+}

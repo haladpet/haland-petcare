@@ -1,0 +1,431 @@
+name: Quality Gate V2 - CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 6 * * *' # Daily at 6 AM
+
+env:
+  NODE_VERSION: 20
+  BASE_URL: http://localhost:3000
+
+jobs:
+  # ============================================================
+  # UNIT TESTS
+  # ============================================================
+  unit-tests:
+    name: Unit Tests
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm run test
+        env:
+          NODE_ENV: test
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unit-test-results
+          path: |
+            coverage/
+            vitest-report/
+          retention-days: 14
+
+  # ============================================================
+  # INTEGRATION TESTS
+  # ============================================================
+  integration-tests:
+    name: Integration Tests
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run integration tests
+        run: npx vitest run tests/integration/
+        env:
+          NODE_ENV: test
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: integration-test-results
+          path: |
+            coverage/
+            vitest-report/
+          retention-days: 14
+
+  # ============================================================
+  # E2E TESTS (Cross-browser)
+  # ============================================================
+  e2e-tests:
+    name: E2E Tests
+    timeout-minutes: 60
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [chromium, firefox, webkit]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps ${{ matrix.project }}
+
+      - name: Run Playwright tests
+        run: npx playwright test --project=${{ matrix.project }}
+        env:
+          BASE_URL: ${{ env.BASE_URL }}
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report-${{ matrix.project }}
+          path: playwright-report/
+          retention-days: 30
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces-${{ matrix.project }}
+          path: test-results/
+          retention-days: 30
+
+  # ============================================================
+  # SYNC TESTS
+  # ============================================================
+  sync-tests:
+    name: Sync Tests
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run sync E2E tests
+        run: npx playwright test tests/e2e/sync/ tests/e2e/sync-advanced/ --project=chromium
+        env:
+          BASE_URL: ${{ env.BASE_URL }}
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sync-test-results
+          path: playwright-report/
+          retention-days: 30
+
+  # ============================================================
+  # CONFLICT RESOLUTION TESTS
+  # ============================================================
+  conflict-tests:
+    name: Conflict Resolution Tests
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run conflict resolution tests
+        run: npx vitest run tests/integration/ --reporter=verbose
+        env:
+          NODE_ENV: test
+          TEST_CONFLICT_RESOLUTION: 'true'
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: conflict-test-results
+          path: vitest-report/
+          retention-days: 14
+
+  # ============================================================
+  # FINANCIAL TESTS
+  # ============================================================
+  financial-tests:
+    name: Financial Tests
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run financial E2E tests
+        run: npx playwright test tests/e2e/pos/ --project=chromium
+        env:
+          BASE_URL: ${{ env.BASE_URL }}
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: financial-test-results
+          path: playwright-report/
+          retention-days: 30
+
+  # ============================================================
+  # SECURITY TESTS
+  # ============================================================
+  security-tests:
+    name: Security Tests
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run RBAC E2E tests
+        run: npx playwright test tests/e2e/rbac/ --project=chromium
+        env:
+          BASE_URL: ${{ env.BASE_URL }}
+
+      - name: Run authorization integration tests
+        run: npx vitest run tests/integration/authorization.test.ts
+        env:
+          NODE_ENV: test
+
+      - name: Run data isolation tests
+        run: npx vitest run tests/integration/data-isolation.test.ts
+        env:
+          NODE_ENV: test
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-test-results
+          path: |
+            playwright-report/
+            vitest-report/
+          retention-days: 30
+
+  # ============================================================
+  # K6 LOAD TESTS
+  # ============================================================
+  load-tests:
+    name: k6 Load Tests
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install k6
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gnupg
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install -y k6
+
+      - name: Verify k6 installation
+        run: k6 version
+
+      - name: Run k6 load tests
+        run: |
+          mkdir -p tests/load/reports
+          cd tests/load
+          k6 run --vus 100 --duration 30s load-test.js \
+            --out json=reports/results-ci.json \
+            --out html=reports/report-ci.html
+        env:
+          BASE_URL: ${{ env.BASE_URL }}
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: k6-load-test-results
+          path: tests/load/reports/
+          retention-days: 30
+
+  # ============================================================
+  # LIGHTHOUSE CI
+  # ============================================================
+  lighthouse-ci:
+    name: Lighthouse CI
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+        env:
+          NODE_ENV: production
+
+      - name: Install Lighthouse CI
+        run: npm install -g @lhci/cli
+
+      - name: Run Lighthouse CI
+        run: lhci autorun
+        env:
+          LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
+          CHROME_PATH: $(which google-chrome-stable || which google-chrome || which chromium-browser || which chromium)
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lighthouse-report
+          path: .lighthouseci/
+          retention-days: 30
+
+  # ============================================================
+  # QUALITY GATE V2
+  # ============================================================
+  quality-gate:
+    name: Quality Gate V2
+    needs:
+      - unit-tests
+      - integration-tests
+      - e2e-tests
+      - sync-tests
+      - conflict-tests
+      - financial-tests
+      - security-tests
+      - load-tests
+      - lighthouse-ci
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check all test results
+        run: |
+          echo "============================================"
+          echo "  QUALITY GATE V2 - DEPLOYMENT CHECK"
+          echo "============================================"
+          echo ""
+          echo "Checking all required test suites..."
+          echo ""
+
+          # Check each required job status
+          FAILED=false
+
+          check_job() {
+            local job_name="$1"
+            local job_result="$2"
+            if [ "$job_result" == "success" ]; then
+              echo "  ✅ $job_name: PASSED"
+            else
+              echo "  ❌ $job_name: FAILED ($job_result)"
+              FAILED=true
+            fi
+          }
+
+          check_job "Unit Tests" "${{ needs.unit-tests.result }}"
+          check_job "Integration Tests" "${{ needs.integration-tests.result }}"
+          check_job "E2E Tests" "${{ needs.e2e-tests.result }}"
+          check_job "Sync Tests" "${{ needs.sync-tests.result }}"
+          check_job "Conflict Resolution Tests" "${{ needs.conflict-tests.result }}"
+          check_job "Financial Tests" "${{ needs.financial-tests.result }}"
+          check_job "Security Tests" "${{ needs.security-tests.result }}"
+          check_job "k6 Load Tests" "${{ needs.load-tests.result }}"
+          check_job "Lighthouse CI" "${{ needs.lighthouse-ci.result }}"
+
+          echo ""
+          echo "============================================"
+
+          if [ "$FAILED" = "true" ]; then
+            echo "  ❌ QUALITY GATE V2: FAILED"
+            echo "  Deployment blocked. Fix failing tests before merging."
+            echo "============================================"
+            exit 1
+          else
+            echo "  ✅ QUALITY GATE V2: PASSED"
+            echo "  All quality checks passed. Deployment approved."
+            echo "============================================"
+          fi
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "::warning::Quality Gate V2 failed. One or more test suites did not pass."
+          echo "::warning::Check the workflow run for details on which tests failed."
+
+      - name: Summary
+        run: |
+          echo "## Quality Gate V2 Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Test Suite | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| Unit Tests | ${{ needs.unit-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Integration Tests | ${{ needs.integration-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| E2E Tests | ${{ needs.e2e-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Sync Tests | ${{ needs.sync-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Conflict Resolution Tests | ${{ needs.conflict-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Financial Tests | ${{ needs.financial-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Security Tests | ${{ needs.security-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| k6 Load Tests | ${{ needs.load-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Lighthouse CI | ${{ needs.lighthouse-ci.result }} |" >> $GITHUB_STEP_SUMMARY

@@ -70,14 +70,15 @@ export default function PetsPage() {
   const speciesEmoji: Record<string, string> = { DOG: '🐕', CAT: '🐈', BIRD: '🐦', OTHER: '🐾' }
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="p-6 max-w-5xl mx-auto" data-testid="pets-page">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Pets</h1>
-        <Button onClick={() => setDialogOpen(true)}>+ Add Pet</Button>
+        <Button data-testid="pet-create-button" onClick={() => setDialogOpen(true)}>+ Add Pet</Button>
       </div>
 
       <div className="flex gap-3 mb-4">
         <Input
+          data-testid="pet-search-input"
           placeholder="Search by name..."
           value={search}
           onChange={(e) => { setSearch(e.target.value); setPage(1) }}
@@ -86,18 +87,18 @@ export default function PetsPage() {
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3" data-testid="pet-loading">
           {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-24 w-full" />)}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3" data-testid="pet-list">
           {pets.map((pet) => (
-            <Link key={pet.id} href={`/pets/${pet.id}/history`}>
+            <Link key={pet.id} href={`/pets/${pet.id}/history`} data-testid={`pet-row-${pet.id}`}>
               <Card className="p-4 hover:bg-accent/50 transition-colors cursor-pointer">
                 <div className="flex items-start gap-3">
                   <span className="text-3xl">{speciesEmoji[pet.species || 'OTHER'] || '🐾'}</span>
                   <div className="flex-1">
-                    <div className="font-semibold">{pet.name}</div>
+                    <div className="font-semibold" data-testid={`pet-name-${pet.id}`}>{pet.name}</div>
                     <div className="text-sm text-muted-foreground">
                       {pet.species && <span>{pet.species}</span>}
                       {pet.breed && <span className="ml-2">• {pet.breed}</span>}
@@ -105,7 +106,7 @@ export default function PetsPage() {
                     </div>
                     {pet.weight && <div className="text-xs text-muted-foreground mt-1">{pet.weight} kg</div>}
                   </div>
-                  <Badge variant={pet.status === 'ACTIVE' ? 'default' : 'secondary'}>{pet.status}</Badge>
+                  <Badge variant={pet.status === 'ACTIVE' ? 'default' : 'secondary'} data-testid={`pet-status-${pet.id}`}>{pet.status}</Badge>
                 </div>
               </Card>
             </Link>
@@ -114,25 +115,25 @@ export default function PetsPage() {
       )}
 
       {!loading && pets.length === 0 && (
-        <Card className="p-8 text-center text-muted-foreground">No pets found.</Card>
+        <Card className="p-8 text-center text-muted-foreground" data-testid="pet-empty">No pets found.</Card>
       )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent data-testid="pet-create-dialog">
           <DialogHeader><DialogTitle>Add Pet</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div>
               <label className="text-sm font-medium">Name *</label>
-              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Pet name" />
+              <Input data-testid="pet-input-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Pet name" />
             </div>
             <div>
               <label className="text-sm font-medium">Customer ID *</label>
-              <Input value={form.customer_id} onChange={(e) => setForm({ ...form, customer_id: e.target.value })} placeholder="Customer UUID" />
+              <Input data-testid="pet-input-customer-id" value={form.customer_id} onChange={(e) => setForm({ ...form, customer_id: e.target.value })} placeholder="Customer UUID" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-sm font-medium">Species</label>
-                <select className="w-full border rounded-md p-2 text-sm" value={form.species} onChange={(e) => setForm({ ...form, species: e.target.value })}>
+                <select data-testid="pet-input-species" className="w-full border rounded-md p-2 text-sm" value={form.species} onChange={(e) => setForm({ ...form, species: e.target.value })}>
                   <option value="DOG">Dog</option>
                   <option value="CAT">Cat</option>
                   <option value="BIRD">Bird</option>
@@ -141,7 +142,7 @@ export default function PetsPage() {
               </div>
               <div>
                 <label className="text-sm font-medium">Gender</label>
-                <select className="w-full border rounded-md p-2 text-sm" value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })}>
+                <select data-testid="pet-input-gender" className="w-full border rounded-md p-2 text-sm" value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })}>
                   <option value="">Unknown</option>
                   <option value="MALE">Male</option>
                   <option value="FEMALE">Female</option>
@@ -150,12 +151,12 @@ export default function PetsPage() {
             </div>
             <div>
               <label className="text-sm font-medium">Breed</label>
-              <Input value={form.breed} onChange={(e) => setForm({ ...form, breed: e.target.value })} placeholder="Breed" />
+              <Input data-testid="pet-input-breed" value={form.breed} onChange={(e) => setForm({ ...form, breed: e.target.value })} placeholder="Breed" />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleCreate} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button>
+            <Button data-testid="pet-cancel-button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+            <Button data-testid="pet-save-button" onClick={handleCreate} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

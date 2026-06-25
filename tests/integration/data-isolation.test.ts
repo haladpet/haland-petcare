@@ -1,12 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { requireClinicScope, enforceTenantAccess } from '@/lib/security/tenant-guard'
 
 // Mock tenant guard
-const mockRequireClinicScope = vi.fn()
-const mockEnforceTenantAccess = vi.fn()
-
 vi.mock('@/lib/security/tenant-guard', () => ({
-  requireClinicScope: mockRequireClinicScope,
-  enforceTenantAccess: mockEnforceTenantAccess,
+  requireClinicScope: vi.fn(),
+  enforceTenantAccess: vi.fn(),
 }))
 
 describe('Data Isolation — Cross-Clinic Security', () => {
@@ -19,8 +17,6 @@ describe('Data Isolation — Cross-Clinic Security', () => {
 
   describe('Tenant Scope Enforcement', () => {
     it('should enforce clinic scope on every data access', () => {
-      const { requireClinicScope } = require('@/lib/security/tenant-guard')
-
       // Simulate accessing data with clinic A scope
       requireClinicScope(clinicA, 'test-operation')
 
@@ -28,8 +24,6 @@ describe('Data Isolation — Cross-Clinic Security', () => {
     })
 
     it('should enforce tenant access for cross-clinic queries', () => {
-      const { enforceTenantAccess } = require('@/lib/security/tenant-guard')
-
       enforceTenantAccess(clinicA, clinicA, 'read')
       expect(enforceTenantAccess).toHaveBeenCalledWith(clinicA, clinicA, 'read')
     })

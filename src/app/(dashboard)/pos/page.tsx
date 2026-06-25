@@ -144,22 +144,23 @@ export default function POSPage() {
   const change = inputAmount - totalAmount
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="p-6 max-w-6xl mx-auto" data-testid="pos-page">
       <h1 className="text-2xl font-bold mb-6">Point of Sale</h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Invoice List */}
         <div className="lg:col-span-1">
-          <Card className="p-4">
+          <Card className="p-4" data-testid="pos-invoice-list">
             <h2 className="font-semibold mb-3">Pending Invoices</h2>
-            {loadingInvoices && <p className="text-sm text-muted-foreground">Loading...</p>}
+            {loadingInvoices && <p className="text-sm text-muted-foreground" data-testid="pos-loading">Loading...</p>}
             {!loadingInvoices && invoices.length === 0 && (
-              <p className="text-sm text-muted-foreground">No pending invoices</p>
+              <p className="text-sm text-muted-foreground" data-testid="pos-no-invoices">No pending invoices</p>
             )}
             <div className="space-y-2 max-h-96 overflow-y-auto">
               {invoices.map((inv) => (
                 <button
                   key={inv.id}
+                  data-testid={`pos-invoice-${inv.id}`}
                   className={`w-full text-left p-3 rounded-md border transition-colors ${
                     selectedInvoice?.id === inv.id
                       ? 'border-primary bg-primary/10'
@@ -191,9 +192,9 @@ export default function POSPage() {
         {/* Payment Area */}
         <div className="lg:col-span-2">
           {selectedInvoice ? (
-            <div className="space-y-4">
+            <div className="space-y-4" data-testid="pos-payment-area">
               {/* Invoice Detail */}
-              <Card className="p-4">
+              <Card className="p-4" data-testid="pos-invoice-detail">
                 <h2 className="font-semibold mb-2">
                   Invoice INV-{selectedInvoice.id.slice(0, 8)}
                 </h2>
@@ -210,18 +211,18 @@ export default function POSPage() {
                 <Separator />
                 <div className="flex justify-between font-bold text-lg mt-2">
                   <span>Total</span>
-                  <span>Rp {totalAmount.toLocaleString('id-ID')}</span>
+                  <span data-testid="pos-total-amount">Rp {totalAmount.toLocaleString('id-ID')}</span>
                 </div>
               </Card>
 
               {/* Amount Display */}
-              <Card className="p-4">
+              <Card className="p-4" data-testid="pos-amount-display">
                 <div className="text-center">
-                  <div className="text-3xl font-mono font-bold tabular-nums">
+                  <div className="text-3xl font-mono font-bold tabular-nums" data-testid="pos-input-amount">
                     Rp {inputAmount.toLocaleString('id-ID')}
                   </div>
                   {inputAmount > 0 && (
-                    <div className={`text-lg mt-1 ${change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    <div className={`text-lg mt-1 ${change >= 0 ? 'text-green-600' : 'text-red-600'}`} data-testid="pos-change-display">
                       Change: Rp {Math.max(0, change).toLocaleString('id-ID')}
                       {change < 0 && (
                         <span className="text-sm ml-2">
@@ -234,10 +235,11 @@ export default function POSPage() {
               </Card>
 
               {/* Payment Method */}
-              <div className="flex gap-2">
+              <div className="flex gap-2" data-testid="pos-payment-methods">
                 {['CASH', 'CARD', 'QRIS', 'TRANSFER'].map((method) => (
                   <Button
                     key={method}
+                    data-testid={`pos-method-${method.toLowerCase()}`}
                     variant={paymentMethod === method ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setPaymentMethod(method)}
@@ -248,11 +250,12 @@ export default function POSPage() {
               </div>
 
               {/* Numpad */}
-              <Card className="p-4">
+              <Card className="p-4" data-testid="pos-numpad">
                 <div className="grid grid-cols-3 gap-2">
                   {['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', '⌫'].map((key) => (
                     <Button
                       key={key}
+                      data-testid={`pos-numpad-${key === '⌫' ? 'backspace' : key === 'C' ? 'clear' : key}`}
                       variant={key === 'C' ? 'destructive' : key === '⌫' ? 'outline' : 'secondary'}
                       className="h-14 text-lg font-bold"
                       onClick={() => handleNumpad(key)}
@@ -262,48 +265,37 @@ export default function POSPage() {
                   ))}
                 </div>
                 <div className="grid grid-cols-2 gap-2 mt-2">
-                  <Button variant="outline" className="h-10" onClick={() => handleNumpad('000')}>
+                  <Button data-testid="pos-numpad-000" variant="outline" className="h-10" onClick={() => handleNumpad('000')}>
                     000
                   </Button>
-                  <Button variant="outline" className="h-10" onClick={() => handleNumpad('.')}>
+                  <Button data-testid="pos-numpad-dot" variant="outline" className="h-10" onClick={() => handleNumpad('.')}>
                     .
                   </Button>
                 </div>
 
                 {/* Quick amounts */}
                 <div className="grid grid-cols-3 gap-2 mt-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleQuickAmount(totalAmount)}
-                  >
+                  <Button data-testid="pos-quick-exact" variant="outline" size="sm" onClick={() => handleQuickAmount(totalAmount)}>
                     Exact
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleQuickAmount(Math.ceil(totalAmount / 10000) * 10000)}
-                  >
+                  <Button data-testid="pos-quick-roundup" variant="outline" size="sm" onClick={() => handleQuickAmount(Math.ceil(totalAmount / 10000) * 10000)}>
                     Round Up
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleQuickAmount(Math.ceil(totalAmount / 50000) * 50000)}
-                  >
+                  <Button data-testid="pos-quick-50k" variant="outline" size="sm" onClick={() => handleQuickAmount(Math.ceil(totalAmount / 50000) * 50000)}>
                     +50k
                   </Button>
                 </div>
               </Card>
 
               {error && (
-                <Card className="p-3 bg-red-50 border-red-300">
+                <Card className="p-3 bg-red-50 border-red-300" data-testid="pos-payment-error">
                   <p className="text-sm text-red-700">{error}</p>
                 </Card>
               )}
 
               {/* Pay Button */}
               <Button
+                data-testid="pos-pay-button"
                 className="w-full h-14 text-lg font-bold"
                 onClick={handlePayment}
                 disabled={processing || inputAmount < totalAmount}
@@ -316,7 +308,7 @@ export default function POSPage() {
               </Button>
             </div>
           ) : (
-            <Card className="p-8 text-center text-muted-foreground">
+            <Card className="p-8 text-center text-muted-foreground" data-testid="pos-no-selection">
               Select an invoice from the list to process payment.
             </Card>
           )}
@@ -325,12 +317,12 @@ export default function POSPage() {
 
       {/* Receipt Dialog */}
       <Dialog open={receiptDialog} onOpenChange={setReceiptDialog}>
-        <DialogContent>
+        <DialogContent data-testid="pos-receipt-dialog">
           <DialogHeader>
             <DialogTitle>Payment Receipt</DialogTitle>
           </DialogHeader>
           {receiptData && (
-            <div className="space-y-3">
+            <div className="space-y-3" data-testid="pos-receipt-content">
               <div className="text-center border-b pb-3">
                 <h3 className="font-bold">Haland PetCare</h3>
                 <p className="text-xs text-muted-foreground">
@@ -391,7 +383,7 @@ export default function POSPage() {
             </div>
           )}
           <DialogFooter>
-            <Button onClick={() => setReceiptDialog(false)}>Close</Button>
+            <Button data-testid="pos-receipt-close" onClick={() => setReceiptDialog(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

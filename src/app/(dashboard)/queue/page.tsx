@@ -68,11 +68,11 @@ export default function QueuePage() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-6 max-w-4xl mx-auto" data-testid="queue-page">
       <h1 className="text-2xl font-bold mb-6">Queue Management</h1>
 
       {/* Currently Serving */}
-      <Card className="p-4 mb-6">
+      <Card className="p-4 mb-6" data-testid="queue-currently-serving">
         <h2 className="font-semibold mb-3 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
           Currently Serving
@@ -81,27 +81,27 @@ export default function QueuePage() {
           <Skeleton className="h-16 w-full" />
         ) : queues.currentServing.length > 0 ? (
           queues.currentServing.map((q) => (
-            <div key={q.id} className="p-3 bg-green-50 rounded-md flex items-center justify-between">
+            <div key={q.id} className="p-3 bg-green-50 rounded-md flex items-center justify-between" data-testid={`queue-serving-${q.id}`}>
               <div>
-                <div className="font-bold text-lg">{q.queue_number}</div>
+                <div className="font-bold text-lg" data-testid={`queue-number-${q.id}`}>{q.queue_number}</div>
                 <div className="text-xs text-muted-foreground">
                   Started: {new Date(q.created_at).toLocaleTimeString('id-ID')}
                 </div>
               </div>
               <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => handleStatus(q.id, 'COMPLETED')}>
+                <Button data-testid={`queue-complete-${q.id}`} size="sm" variant="outline" onClick={() => handleStatus(q.id, 'COMPLETED')}>
                   Complete
                 </Button>
               </div>
             </div>
           ))
         ) : (
-          <p className="text-sm text-muted-foreground">No patient currently being served.</p>
+          <p className="text-sm text-muted-foreground" data-testid="queue-no-serving">No patient currently being served.</p>
         )}
       </Card>
 
       {/* Waiting List */}
-      <Card className="p-4">
+      <Card className="p-4" data-testid="queue-waiting-list">
         <h2 className="font-semibold mb-3">Waiting List ({queues.waiting.length})</h2>
         {loading ? (
           <div className="space-y-2">
@@ -110,7 +110,7 @@ export default function QueuePage() {
         ) : queues.waiting.length > 0 ? (
           <div className="space-y-2">
             {queues.waiting.map((q) => (
-              <div key={q.id} className="p-3 border rounded-md flex items-center justify-between hover:bg-accent/50">
+              <div key={q.id} className="p-3 border rounded-md flex items-center justify-between hover:bg-accent/50" data-testid={`queue-waiting-${q.id}`}>
                 <div className="flex items-center gap-3">
                   <div className="text-lg font-bold text-muted-foreground w-8">#{q.position}</div>
                   <div>
@@ -119,16 +119,16 @@ export default function QueuePage() {
                       {new Date(q.created_at).toLocaleTimeString('id-ID')}
                     </div>
                   </div>
-                  <Badge className={priorityColor[q.priority] || ''}>{q.priority}</Badge>
+                  <Badge className={priorityColor[q.priority] || ''} data-testid={`queue-priority-${q.id}`}>{q.priority}</Badge>
                 </div>
-                <Button size="sm" onClick={() => handleNext(q.id)}>
+                <Button data-testid={`queue-serve-${q.id}`} size="sm" onClick={() => handleNext(q.id)}>
                   Serve Next
                 </Button>
               </div>
             ))}
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">No patients waiting.</p>
+          <p className="text-sm text-muted-foreground" data-testid="queue-no-waiting">No patients waiting.</p>
         )}
       </Card>
     </div>

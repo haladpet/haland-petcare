@@ -41,24 +41,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   })
 
   return (
-    <div className="min-h-screen flex">
+    <div className="min-h-screen flex" data-testid="dashboard-layout">
       {/* Sidebar */}
-      <aside className={`${sidebarOpen ? 'w-56' : 'w-14'} bg-background border-r border-border transition-all duration-200 flex flex-col`}>
+      <aside data-testid="sidebar" className={`${sidebarOpen ? 'w-56' : 'w-14'} bg-background border-r border-border transition-all duration-200 flex flex-col`}>
         <div className="h-14 flex items-center px-3 border-b border-border">
           <button
+            data-testid="sidebar-toggle"
             onClick={() => setSidebarOpen(!sidebarOpen)}
             className="text-lg font-bold text-primary hover:opacity-80 transition-opacity"
           >
             {sidebarOpen ? '🐾 Haland PC' : '🐾'}
           </button>
         </div>
-        <nav className="flex-1 overflow-y-auto py-2">
+        <nav className="flex-1 overflow-y-auto py-2" data-testid="sidebar-nav">
           {filteredNav.map((item) => {
             const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
             return (
               <Link
                 key={item.href}
                 href={item.href}
+                data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
                 className={`flex items-center gap-3 px-3 py-2 mx-2 rounded-md text-sm transition-colors ${
                   isActive
                     ? 'bg-primary/10 text-primary font-medium'
@@ -71,7 +73,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             )
           })}
         </nav>
-        <div className="p-3 border-t border-border">
+        <div className="p-3 border-t border-border" data-testid="sidebar-user-info">
           {user && (
             <div className={`flex items-center gap-2 ${!sidebarOpen && 'justify-center'}`}>
               <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold flex-shrink-0">
@@ -79,8 +81,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </div>
               {sidebarOpen && (
                 <div className="text-xs truncate">
-                  <div className="font-medium">{user.full_name}</div>
-                  <div className="text-muted-foreground">{user.role}</div>
+                  <div className="font-medium" data-testid="user-name">{user.full_name}</div>
+                  <div className="text-muted-foreground" data-testid="user-role">{user.role}</div>
                 </div>
               )}
             </div>
@@ -89,7 +91,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto pb-10">
+      <main className="flex-1 overflow-y-auto pb-10" data-testid="main-content">
         {children}
       </main>
 

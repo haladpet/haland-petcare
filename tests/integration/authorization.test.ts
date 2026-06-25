@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { hasPermission } from '@/lib/permissions/matrix'
+import { hasPermission, PERMISSION_MATRIX } from '@/lib/permissions/matrix'
 import type { Role } from '@/types/auth'
 
 // Mock the JWT verification and audit log to test authorization logic in isolation
@@ -95,7 +95,7 @@ describe('Authorization Integration', () => {
     })
 
     it('CUSTOMER cannot access anything (full boundary)', () => {
-      const allPerms = Object.keys(require('@/lib/permissions/matrix').PERMISSION_MATRIX.CUSTOMER)
+      const allPerms = Object.keys(PERMISSION_MATRIX.CUSTOMER)
       for (const perm of allPerms) {
         expect(hasPermission('CUSTOMER', perm)).toBe(false)
       }
@@ -104,7 +104,6 @@ describe('Authorization Integration', () => {
 
   describe('Permission matrix integrity', () => {
     it('should have exactly 4 roles defined', () => {
-      const { PERMISSION_MATRIX } = require('@/lib/permissions/matrix')
       const definedRoles = Object.keys(PERMISSION_MATRIX)
       expect(definedRoles).toHaveLength(4)
       expect(definedRoles).toContain('OWNER')
@@ -114,7 +113,6 @@ describe('Authorization Integration', () => {
     })
 
     it('all roles should have the same permission keys', () => {
-      const { PERMISSION_MATRIX } = require('@/lib/permissions/matrix')
       const ownerKeys = Object.keys(PERMISSION_MATRIX.OWNER).sort()
       for (const role of ['DOCTOR', 'STAFF', 'CUSTOMER'] as const) {
         const roleKeys = Object.keys(PERMISSION_MATRIX[role]).sort()
@@ -123,7 +121,6 @@ describe('Authorization Integration', () => {
     })
 
     it('no role should have undefined permissions', () => {
-      const { PERMISSION_MATRIX } = require('@/lib/permissions/matrix')
       for (const role of ['OWNER', 'DOCTOR', 'STAFF', 'CUSTOMER'] as const) {
         for (const [key, value] of Object.entries(PERMISSION_MATRIX[role])) {
           expect(typeof value).toBe('boolean')

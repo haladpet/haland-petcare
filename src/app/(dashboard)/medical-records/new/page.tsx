@@ -192,23 +192,24 @@ export default function NewMedicalRecordPage() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-6 max-w-4xl mx-auto" data-testid="medical-record-page">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">New Medical Record</h1>
         {lastSaved && (
-          <Badge variant="outline" className="text-xs">
+          <Badge variant="outline" className="text-xs" data-testid="medical-record-draft-saved">
             Draft saved at {lastSaved}
           </Badge>
         )}
       </div>
 
       {/* Patient Selection */}
-      <Card className="p-4 mb-4">
+      <Card className="p-4 mb-4" data-testid="medical-record-patient-info">
         <h2 className="font-semibold mb-3">Patient Information</h2>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="text-sm font-medium">Customer</label>
             <select
+              data-testid="medical-record-select-customer"
               className="w-full border rounded-md p-2 text-sm mt-1"
               value={draft.customer_id}
               onChange={(e) => updateField('customer_id', e.target.value)}
@@ -222,6 +223,7 @@ export default function NewMedicalRecordPage() {
           <div>
             <label className="text-sm font-medium">Pet</label>
             <select
+              data-testid="medical-record-select-pet"
               className="w-full border rounded-md p-2 text-sm mt-1"
               value={draft.pet_id}
               onChange={(e) => updateField('pet_id', e.target.value)}
@@ -235,6 +237,7 @@ export default function NewMedicalRecordPage() {
           <div>
             <label className="text-sm font-medium">Clinic ID</label>
             <Input
+              data-testid="medical-record-input-clinic-id"
               value={draft.clinic_id}
               onChange={(e) => updateField('clinic_id', e.target.value)}
               placeholder="Clinic UUID"
@@ -243,6 +246,7 @@ export default function NewMedicalRecordPage() {
           <div>
             <label className="text-sm font-medium">Queue ID (optional)</label>
             <Input
+              data-testid="medical-record-input-queue-id"
               value={draft.queue_id}
               onChange={(e) => updateField('queue_id', e.target.value)}
               placeholder="Queue UUID"
@@ -251,6 +255,7 @@ export default function NewMedicalRecordPage() {
           <div>
             <label className="text-sm font-medium">Visit Date</label>
             <Input
+              data-testid="medical-record-input-visit-date"
               type="date"
               value={draft.visit_date}
               onChange={(e) => updateField('visit_date', e.target.value)}
@@ -259,6 +264,7 @@ export default function NewMedicalRecordPage() {
           <div>
             <label className="text-sm font-medium">Visit Type</label>
             <select
+              data-testid="medical-record-select-visit-type"
               className="w-full border rounded-md p-2 text-sm mt-1"
               value={draft.visit_type}
               onChange={(e) => updateField('visit_type', e.target.value)}
@@ -274,18 +280,19 @@ export default function NewMedicalRecordPage() {
       {/* Tabs: Physical Exam, Findings, Prescription */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="mb-4">
-          <TabsTrigger value="physical">Physical Exam</TabsTrigger>
-          <TabsTrigger value="findings">Findings & Diagnosis</TabsTrigger>
-          <TabsTrigger value="prescription">Prescription</TabsTrigger>
+          <TabsTrigger data-testid="medical-record-tab-physical" value="physical">Physical Exam</TabsTrigger>
+          <TabsTrigger data-testid="medical-record-tab-findings" value="findings">Findings & Diagnosis</TabsTrigger>
+          <TabsTrigger data-testid="medical-record-tab-prescription" value="prescription">Prescription</TabsTrigger>
         </TabsList>
 
         <TabsContent value="physical">
-          <Card className="p-4">
+          <Card className="p-4" data-testid="medical-record-physical-exam">
             <h2 className="font-semibold mb-3">Physical Examination</h2>
             <div className="grid grid-cols-3 gap-4">
               <div>
                 <label className="text-sm font-medium">Body Condition Score (1-9)</label>
                 <Input
+                  data-testid="medical-record-input-bcs"
                   type="number"
                   min={1}
                   max={9}
@@ -297,6 +304,7 @@ export default function NewMedicalRecordPage() {
               <div>
                 <label className="text-sm font-medium">Temperature (°C)</label>
                 <Input
+                  data-testid="medical-record-input-temperature"
                   type="number"
                   step="0.1"
                   value={draft.temperature}
@@ -307,6 +315,7 @@ export default function NewMedicalRecordPage() {
               <div>
                 <label className="text-sm font-medium">Heart Rate (bpm)</label>
                 <Input
+                  data-testid="medical-record-input-heart-rate"
                   type="number"
                   value={draft.heart_rate}
                   onChange={(e) => updateField('heart_rate', e.target.value)}
@@ -316,6 +325,7 @@ export default function NewMedicalRecordPage() {
               <div>
                 <label className="text-sm font-medium">Respiratory Rate (/min)</label>
                 <Input
+                  data-testid="medical-record-input-respiratory-rate"
                   type="number"
                   value={draft.respiratory_rate}
                   onChange={(e) => updateField('respiratory_rate', e.target.value)}
@@ -325,6 +335,7 @@ export default function NewMedicalRecordPage() {
               <div>
                 <label className="text-sm font-medium">Weight (kg)</label>
                 <Input
+                  data-testid="medical-record-input-weight"
                   type="number"
                   step="0.01"
                   value={draft.weight}
@@ -336,6 +347,7 @@ export default function NewMedicalRecordPage() {
             <div className="mt-4">
               <label className="text-sm font-medium">Physical Exam Notes</label>
               <Textarea
+                data-testid="medical-record-input-exam-notes"
                 value={draft.physical_exam_notes}
                 onChange={(e) => updateField('physical_exam_notes', e.target.value)}
                 placeholder="General appearance, mucous membranes, lymph nodes, auscultation findings..."
@@ -346,12 +358,13 @@ export default function NewMedicalRecordPage() {
         </TabsContent>
 
         <TabsContent value="findings">
-          <Card className="p-4">
+          <Card className="p-4" data-testid="medical-record-findings">
             <h2 className="font-semibold mb-3">Findings & Diagnosis</h2>
             <div className="space-y-4">
               <div>
                 <label className="text-sm font-medium">Chief Complaint</label>
                 <Textarea
+                  data-testid="medical-record-input-complaint"
                   value={draft.chief_complaint}
                   onChange={(e) => updateField('chief_complaint', e.target.value)}
                   placeholder="Reason for visit..."
@@ -361,6 +374,7 @@ export default function NewMedicalRecordPage() {
               <div>
                 <label className="text-sm font-medium">Diagnosis</label>
                 <Textarea
+                  data-testid="medical-record-input-diagnosis"
                   value={draft.diagnosis}
                   onChange={(e) => updateField('diagnosis', e.target.value)}
                   placeholder="Primary diagnosis..."
@@ -370,6 +384,7 @@ export default function NewMedicalRecordPage() {
               <div>
                 <label className="text-sm font-medium">Treatment Plan</label>
                 <Textarea
+                  data-testid="medical-record-input-treatment"
                   value={draft.treatment}
                   onChange={(e) => updateField('treatment', e.target.value)}
                   placeholder="Treatment plan..."
@@ -379,6 +394,7 @@ export default function NewMedicalRecordPage() {
               <div>
                 <label className="text-sm font-medium">Lab Results</label>
                 <Textarea
+                  data-testid="medical-record-input-lab-results"
                   value={draft.lab_results}
                   onChange={(e) => updateField('lab_results', e.target.value)}
                   placeholder="Lab test results..."
@@ -388,6 +404,7 @@ export default function NewMedicalRecordPage() {
               <div>
                 <label className="text-sm font-medium">Additional Notes</label>
                 <Textarea
+                  data-testid="medical-record-input-notes"
                   value={draft.notes}
                   onChange={(e) => updateField('notes', e.target.value)}
                   placeholder="Additional notes..."
@@ -397,6 +414,7 @@ export default function NewMedicalRecordPage() {
               <div>
                 <label className="text-sm font-medium">Follow-up Date</label>
                 <Input
+                  data-testid="medical-record-input-follow-up"
                   type="date"
                   value={draft.follow_up_date}
                   onChange={(e) => updateField('follow_up_date', e.target.value)}
@@ -407,7 +425,7 @@ export default function NewMedicalRecordPage() {
         </TabsContent>
 
         <TabsContent value="prescription">
-          <Card className="p-4">
+          <Card className="p-4" data-testid="medical-record-prescription">
             <h2 className="font-semibold mb-3">Prescription</h2>
             <PrescriptionBuilder
               items={draft.prescriptionItems}
@@ -423,10 +441,10 @@ export default function NewMedicalRecordPage() {
 
       {/* Submit */}
       <div className="flex justify-end gap-3 mt-6">
-        <Button variant="outline" onClick={() => router.back()}>
+        <Button data-testid="medical-record-cancel-button" variant="outline" onClick={() => router.back()}>
           Cancel
         </Button>
-        <Button onClick={handleSubmit} disabled={saving}>
+        <Button data-testid="medical-record-save-button" onClick={handleSubmit} disabled={saving}>
           {saving ? 'Saving...' : 'Save Medical Record'}
         </Button>
       </div>

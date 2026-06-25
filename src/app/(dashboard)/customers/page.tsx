@@ -68,14 +68,15 @@ export default function CustomersPage() {
   }
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="p-6 max-w-5xl mx-auto" data-testid="customers-page">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Customers</h1>
-        <Button onClick={() => setDialogOpen(true)}>+ Add Customer</Button>
+        <Button data-testid="customer-create-button" onClick={() => setDialogOpen(true)}>+ Add Customer</Button>
       </div>
 
       <div className="flex gap-3 mb-4">
         <Input
+          data-testid="customer-search-input"
           placeholder="Search by name or phone..."
           value={search}
           onChange={(e) => { setSearch(e.target.value); setPage(1) }}
@@ -84,67 +85,67 @@ export default function CustomersPage() {
       </div>
 
       {loading ? (
-        <div className="space-y-3">
+        <div className="space-y-3" data-testid="customer-loading">
           {[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-16 w-full" />)}
         </div>
       ) : (
         <>
-          <div className="space-y-2">
+          <div className="space-y-2" data-testid="customer-list">
             {customers.map((c) => (
-              <Card key={c.id} className="p-4 hover:bg-accent/50 transition-colors">
+              <Card key={c.id} className="p-4 hover:bg-accent/50 transition-colors" data-testid={`customer-row-${c.id}`}>
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="font-semibold">{c.full_name}</div>
+                    <div className="font-semibold" data-testid={`customer-name-${c.id}`}>{c.full_name}</div>
                     <div className="text-sm text-muted-foreground">
-                      {c.phone && <span>{c.phone}</span>}
-                      {c.email && <span className="ml-3">{c.email}</span>}
+                      {c.phone && <span data-testid={`customer-phone-${c.id}`}>{c.phone}</span>}
+                      {c.email && <span className="ml-3" data-testid={`customer-email-${c.id}`}>{c.email}</span>}
                     </div>
                     {c.address && <div className="text-xs text-muted-foreground mt-1">{c.address}</div>}
                   </div>
-                  <Badge variant={c.status === 'ACTIVE' ? 'default' : 'secondary'}>{c.status}</Badge>
+                  <Badge variant={c.status === 'ACTIVE' ? 'default' : 'secondary'} data-testid={`customer-status-${c.id}`}>{c.status}</Badge>
                 </div>
               </Card>
             ))}
           </div>
 
           {customers.length === 0 && (
-            <Card className="p-8 text-center text-muted-foreground">No customers found.</Card>
+            <Card className="p-8 text-center text-muted-foreground" data-testid="customer-empty">No customers found.</Card>
           )}
 
           {totalPages > 1 && (
-            <div className="flex items-center justify-between mt-4">
-              <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>Previous</Button>
-              <span className="text-sm text-muted-foreground">Page {page} of {totalPages}</span>
-              <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>Next</Button>
+            <div className="flex items-center justify-between mt-4" data-testid="customer-pagination">
+              <Button data-testid="customer-prev-page" variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>Previous</Button>
+              <span className="text-sm text-muted-foreground" data-testid="customer-page-info">Page {page} of {totalPages}</span>
+              <Button data-testid="customer-next-page" variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>Next</Button>
             </div>
           )}
         </>
       )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent data-testid="customer-create-dialog">
           <DialogHeader><DialogTitle>Add Customer</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div>
               <label className="text-sm font-medium">Full Name *</label>
-              <Input value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} placeholder="Customer name" />
+              <Input data-testid="customer-input-name" value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} placeholder="Customer name" />
             </div>
             <div>
               <label className="text-sm font-medium">Phone *</label>
-              <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+6281234567890" />
+              <Input data-testid="customer-input-phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+6281234567890" />
             </div>
             <div>
               <label className="text-sm font-medium">Email</label>
-              <Input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="email@example.com" />
+              <Input data-testid="customer-input-email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="email@example.com" />
             </div>
             <div>
               <label className="text-sm font-medium">Address</label>
-              <Input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Address" />
+              <Input data-testid="customer-input-address" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Address" />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleCreate} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button>
+            <Button data-testid="customer-cancel-button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+            <Button data-testid="customer-save-button" onClick={handleCreate} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

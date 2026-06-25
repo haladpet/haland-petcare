@@ -108,43 +108,43 @@ export default function InventoryPage() {
   }
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="p-6 max-w-5xl mx-auto" data-testid="inventory-page">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Inventory</h1>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setBatchDialogOpen(true)}>+ Add Batch</Button>
-          <Button onClick={() => setDialogOpen(true)}>+ Add Item</Button>
+          <Button data-testid="inventory-add-batch-button" variant="outline" onClick={() => setBatchDialogOpen(true)}>+ Add Batch</Button>
+          <Button data-testid="inventory-add-item-button" onClick={() => setDialogOpen(true)}>+ Add Item</Button>
         </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="mb-4">
-          <TabsTrigger value="all">All Items ({items.length})</TabsTrigger>
-          <TabsTrigger value="low-stock">
+          <TabsTrigger data-testid="inventory-tab-all" value="all">All Items ({items.length})</TabsTrigger>
+          <TabsTrigger data-testid="inventory-tab-low-stock" value="low-stock">
             Low Stock ({lowStock.length})
           </TabsTrigger>
-          <TabsTrigger value="expiring">
+          <TabsTrigger data-testid="inventory-tab-expiring" value="expiring">
             Expiring Soon ({expiring.length})
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="all">
           {loading ? (
-            <div className="space-y-2">
+            <div className="space-y-2" data-testid="inventory-loading">
               {[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-14 w-full" />)}
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-2" data-testid="inventory-list">
               {items.map((item) => (
-                <Card key={item.id} className="p-3 flex items-center justify-between">
+                <Card key={item.id} className="p-3 flex items-center justify-between" data-testid={`inventory-row-${item.id}`}>
                   <div>
-                    <div className="font-semibold text-sm">{item.name}</div>
+                    <div className="font-semibold text-sm" data-testid={`inventory-name-${item.id}`}>{item.name}</div>
                     <div className="text-xs text-muted-foreground">
                       {item.unit && <span>{item.unit}</span>}
                       {item.sku && <span className="ml-2">SKU: {item.sku}</span>}
                     </div>
                   </div>
-                  <Badge variant={item.current_stock > 5 ? 'default' : 'destructive'}>
+                  <Badge variant={item.current_stock > 5 ? 'default' : 'destructive'} data-testid={`inventory-stock-${item.id}`}>
                     Stock: {item.current_stock}
                   </Badge>
                 </Card>
@@ -157,9 +157,9 @@ export default function InventoryPage() {
           {loading ? (
             <Skeleton className="h-32 w-full" />
           ) : lowStock.length > 0 ? (
-            <div className="space-y-2">
+            <div className="space-y-2" data-testid="inventory-low-stock-list">
               {lowStock.map((item) => (
-                <Card key={item.id} className="p-3 flex items-center justify-between border-red-200 bg-red-50">
+                <Card key={item.id} className="p-3 flex items-center justify-between border-red-200 bg-red-50" data-testid={`inventory-low-stock-${item.id}`}>
                   <div>
                     <div className="font-semibold text-sm">{item.name}</div>
                     <div className="text-xs text-muted-foreground">{item.unit}</div>
@@ -169,7 +169,7 @@ export default function InventoryPage() {
               ))}
             </div>
           ) : (
-            <Card className="p-8 text-center text-muted-foreground">No low stock items.</Card>
+            <Card className="p-8 text-center text-muted-foreground" data-testid="inventory-no-low-stock">No low stock items.</Card>
           )}
         </TabsContent>
 
@@ -177,9 +177,9 @@ export default function InventoryPage() {
           {loading ? (
             <Skeleton className="h-32 w-full" />
           ) : expiring.length > 0 ? (
-            <div className="space-y-2">
+            <div className="space-y-2" data-testid="inventory-expiring-list">
               {expiring.map((entry) => (
-                <Card key={entry.batch.id} className="p-3 flex items-center justify-between border-yellow-200 bg-yellow-50">
+                <Card key={entry.batch.id} className="p-3 flex items-center justify-between border-yellow-200 bg-yellow-50" data-testid={`inventory-expiring-${entry.batch.id}`}>
                   <div>
                     <div className="font-semibold text-sm">{entry.item.name}</div>
                     <div className="text-xs text-muted-foreground">
