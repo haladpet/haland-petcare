@@ -23,7 +23,7 @@ export const createPet = async (data: PetData) => {
   const db = getLocalDb()
   const id = uuidv4()
   const record = { id, ...data, created_at: new Date(), updated_at: new Date() }
-  await db.insert(pets).values(record)
+  await db.insert(pets).values(record as any)
   writeToSyncQueue('pets', id, 'CREATE', record)
   writeAuditLog({ action: 'CREATE_PET', user_id: null, clinic_id: data.clinic_id || null, status: 'INFO', details: { id } })
   return record
@@ -32,7 +32,7 @@ export const createPet = async (data: PetData) => {
 export const updatePet = async (id: string, patch: PetData) => {
   const db = getLocalDb()
   const updated = { ...patch, updated_at: new Date() }
-  await db.update(pets).set(updated).where(eq(pets.id, id))
+  await db.update(pets).set(updated as any).where(eq(pets.id, id))
   writeToSyncQueue('pets', id, 'UPDATE', updated)
   writeAuditLog({ action: 'UPDATE_PET', user_id: null, clinic_id: patch.clinic_id || null, status: 'INFO', details: { id } })
   return { id, ...updated }
@@ -41,7 +41,7 @@ export const updatePet = async (id: string, patch: PetData) => {
 export const softDeletePet = async (id: string) => {
   const db = getLocalDb()
   const deleted_at = new Date()
-  await db.update(pets).set({ deleted_at }).where(eq(pets.id, id))
+  await db.update(pets).set({ deleted_at } as any).where(eq(pets.id, id))
   writeToSyncQueue('pets', id, 'DELETE', { id })
   writeAuditLog({ action: 'DELETE_PET', user_id: null, clinic_id: null, status: 'INFO', details: { id } })
   return { id, deleted_at }

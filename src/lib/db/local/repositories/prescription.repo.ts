@@ -26,7 +26,7 @@ export const createPrescription = async (data: PrescriptionData) => {
   const db = getLocalDb()
   const id = uuidv4()
   const record = { id, ...data, date: new Date(), created_at: new Date(), updated_at: new Date() }
-  await db.insert(prescriptions).values(record)
+  await db.insert(prescriptions).values(record as any)
   writeToSyncQueue('prescriptions', id, 'CREATE', record)
   writeAuditLog({ action: 'CREATE_PRESCRIPTION', user_id: null, clinic_id: data.clinic_id || null, status: 'INFO', details: { id } })
   return record
@@ -35,7 +35,7 @@ export const createPrescription = async (data: PrescriptionData) => {
 export const updatePrescription = async (id: string, patch: PrescriptionData) => {
   const db = getLocalDb()
   const updated = { ...patch, updated_at: new Date() }
-  await db.update(prescriptions).set(updated).where(eq(prescriptions.id, id))
+  await db.update(prescriptions).set(updated as any).where(eq(prescriptions.id, id))
   writeToSyncQueue('prescriptions', id, 'UPDATE', updated)
   writeAuditLog({ action: 'UPDATE_PRESCRIPTION', user_id: null, clinic_id: patch.clinic_id || null, status: 'INFO', details: { id } })
   return { id, ...updated }
@@ -59,6 +59,6 @@ export const addPrescriptionItem = async (data: PrescriptionItemData) => {
   const db = getLocalDb()
   const id = uuidv4()
   const record = { id, ...data }
-  await db.insert(prescriptionItems).values(record)
+  await db.insert(prescriptionItems).values(record as any)
   return record
 }

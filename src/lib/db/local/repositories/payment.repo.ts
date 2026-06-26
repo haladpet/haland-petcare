@@ -16,7 +16,7 @@ export const createPayment = async (data: PaymentData) => {
   const db = getLocalDb()
   const id = uuidv4()
   const record = { id, ...data, paid_at: new Date(), created_at: new Date(), updated_at: new Date() }
-  await db.insert(payments).values(record)
+  await db.insert(payments).values(record as any)
   writeToSyncQueue('payments', id, 'CREATE', record)
   writeAuditLog({ action: 'CREATE_PAYMENT', user_id: null, clinic_id: null, status: 'INFO', details: { id } })
   return record
@@ -25,7 +25,7 @@ export const createPayment = async (data: PaymentData) => {
 export const updatePayment = async (id: string, patch: PaymentData) => {
   const db = getLocalDb()
   const updated = { ...patch, updated_at: new Date() }
-  await db.update(payments).set(updated).where(eq(payments.id, id))
+  await db.update(payments).set(updated as any).where(eq(payments.id, id))
   writeToSyncQueue('payments', id, 'UPDATE', updated)
   writeAuditLog({ action: 'UPDATE_PAYMENT', user_id: null, clinic_id: null, status: 'INFO', details: { id } })
   return { id, ...updated }
@@ -61,12 +61,12 @@ export const processPayment = async (data: { invoice_id: string; amount: number;
     updated_at: new Date(),
   }
 
-  await db.insert(payments).values(record)
+  await db.insert(payments).values(record as any)
 
   // Update invoice status
   await db
     .update(invoices)
-    .set({ status: 'PAID', updated_at: new Date() })
+    .set({ status: 'PAID', updated_at: new Date() } as any)
     .where(eq(invoices.id, data.invoice_id))
 
   writeToSyncQueue('payments', id, 'CREATE', record)
