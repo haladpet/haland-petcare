@@ -1,5 +1,5 @@
 import { getLocalDb } from '@/lib/db/local/client'
-import { customers, pets, appointments, invoices, payments, queues, cages, hospitalizations, medicalRecords, prescriptionItems, medicines, serverUsers } from '@/lib/db/local/schema'
+import { customers, pets, appointments, invoices, payments, queues, cages, hospitalizations, medicalRecords, prescriptionItems, medicines } from '@/lib/db/local/schema'
 import { eq, sql, and, gte, lte, desc, count } from 'drizzle-orm'
 
 export const getDashboardStats = async (clinicId: string) => {

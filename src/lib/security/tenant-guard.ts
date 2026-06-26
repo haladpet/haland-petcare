@@ -85,7 +85,6 @@ export function withClinicFilter(
   clinicId: string
 ) {
   requireClinicScope(clinicId, `withClinicFilter(${table})`)
-  // @ts-expect-error - dynamic column access on generic table
   return eq(table.clinic_id, clinicId)
 }
 
@@ -98,7 +97,6 @@ export function withClinicAndFilter(
   ...additionalConditions: ReturnType<typeof eq>[]
 ) {
   requireClinicScope(clinicId, `withClinicAndFilter(${table})`)
-  // @ts-expect-error - dynamic column access on generic table
   return and(eq(table.clinic_id, clinicId), ...additionalConditions)
 }
 
@@ -132,21 +130,16 @@ export function createTenantQuery(clinicId: string) {
       const db = getServerDb()
       return {
         all: async () => {
-          // @ts-expect-error - dynamic column access
           return db.select().from(table).where(eq(table.clinic_id, clinicId))
         },
         byId: async (id: string) => {
-          // @ts-expect-error - dynamic column access
           const rows = await db.select().from(table).where(
-            // @ts-expect-error - dynamic column access
             and(eq(table.clinic_id, clinicId), eq(table.id, id))
           ).limit(1)
           return rows[0] || null
         },
         where: async (condition: ReturnType<typeof eq>) => {
-          // @ts-expect-error - dynamic column access
           return db.select().from(table).where(
-            // @ts-expect-error - dynamic column access
             and(eq(table.clinic_id, clinicId), condition)
           )
         },
