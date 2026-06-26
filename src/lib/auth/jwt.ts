@@ -37,7 +37,7 @@ export async function signAccessToken(payload: AuthPayload): Promise<string> {
     deviceId: payload.deviceId,
     sessionId: payload.sessionId,
     type: 'ACCESS',
-  } as any)
+  } as Record<string, unknown>)
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt(iat)
     .setExpirationTime(exp)
@@ -63,7 +63,7 @@ export async function signRefreshToken(payload: AuthPayload): Promise<{
     deviceId: payload.deviceId,
     sessionId: payload.sessionId,
     type: 'REFRESH',
-  } as any)
+  } as Record<string, unknown>)
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt(iat)
     .setExpirationTime(exp)
@@ -88,17 +88,19 @@ export async function verifyToken(
     const key = getKey(secret)
     const { payload } = await jwtVerify(token, key)
 
-    // Check if token has been revoked
-    const tokenHash = hashToken(token)
-    const db = getServerDb()
-    const revoked = await db
-      .select({ id: revokedTokens.id })
-      .from(revokedTokens)
-      .where(eq(revokedTokens.token_hash, tokenHash))
-      .limit(1)
+    // Check if token JTI has been revoked
+    const jti = payload.jti as string | undefined
+    if (jti) {
+      const db = getServerDb()
+      const revoked = await db
+        .select({ id: revokedTokens.id })
+        .from(revokedTokens)
+        .where(eq(revokedTokens.token_jti, jti))
+        .limit(1)
 
-    if (revoked.length > 0) {
-      return null // Token has been revoked
+      if (revoked.length > 0) {
+        return null // Token has been revoked
+      }
     }
 
     return payload as JWTPayload & AuthPayload & { type?: string; jti?: string }
@@ -136,12 +138,11 @@ export async function createSession(params: {
   await db.insert(sessions).values({
     id: sessionId,
     user_id: params.userId,
-    clinic_id: params.clinicId,
     device_id: params.deviceId,
     refresh_token_hash: refreshHash,
     expires_at: expiresAt,
     last_activity_at: new Date(),
-    is_revoked: false,
+    is_active: true,
     created_at: new Date(),
     updated_at: new Date(),
   })
@@ -187,14 +188,14 @@ export async function rotateRefreshToken(
     return null
   }
 
-  // Check session exists and is not revoked
+  // Check session exists and is active
   const [session] = await db
     .select()
     .from(sessions)
     .where(eq(sessions.id, sessionId))
     .limit(1)
 
-  if (!session || session.is_revoked) {
+  if (!session || !session.is_active) {
     return null
   }
 
@@ -203,18 +204,18 @@ export async function rotateRefreshToken(
     return null
   }
 
-  // Revoke the old refresh token
-  const oldHash = hashToken(oldRefreshToken)
-  await db.insert(revokedTokens).values({
-    id: uuidv4(),
-    token_hash: oldHash,
-    token_type: 'REFRESH',
-    user_id: payload.userId,
-    clinic_id: payload.clinicId,
-    revoked_at: new Date(),
-    reason: 'ROTATION',
-    expires_at: new Date(payload.exp! * 1000),
-  })
+  // Revoke the old refresh token by its JTI
+  const oldJti = payload.jti
+  if (oldJti) {
+    await db.insert(revokedTokens).values({
+      id: uuidv4(),
+      token_jti: oldJti,
+      user_id: payload.userId,
+      revoked_at: new Date(),
+      reason: 'ROTATION',
+      expires_at: new Date(payload.exp! * 1000),
+    })
+  }
 
   // Create new refresh token
   const { token: newRefreshToken, hash: newRefreshHash } = await signRefreshToken({
@@ -248,7 +249,7 @@ export async function rotateRefreshToken(
 }
 
 /**
- * Invalidate a session — revokes the refresh token and marks session as revoked.
+ * Invalidate a session — revokes the refresh token and marks session as inactive.
  * Called on logout.
  */
 export async function invalidateSession(sessionId: string): Promise<void> {
@@ -262,23 +263,24 @@ export async function invalidateSession(sessionId: string): Promise<void> {
 
   if (!session) return
 
-  // Revoke the refresh token
+  // Revoke the refresh token by its JTI (stored in access_token_jti or we use the hash)
+  // Since we don't have the JTI stored, we revoke by marking session inactive
+  // The refresh token hash is stored, but revokedTokens uses token_jti
+  // We'll insert a revocation record using the session's refresh_token_hash as the JTI
   await db.insert(revokedTokens).values({
     id: uuidv4(),
-    token_hash: session.refresh_token_hash,
-    token_type: 'REFRESH',
+    token_jti: session.refresh_token_hash,
     user_id: session.user_id,
-    clinic_id: session.clinic_id,
     revoked_at: new Date(),
     reason: 'LOGOUT',
     expires_at: session.expires_at,
   })
 
-  // Mark session as revoked
+  // Mark session as inactive
   await db
     .update(sessions)
     .set({
-      is_revoked: true,
+      is_active: false,
       updated_at: new Date(),
     })
     .where(eq(sessions.id, sessionId))
@@ -293,13 +295,13 @@ export async function revokeAccessToken(token: string, reason: string = 'MANUAL'
   const payload = await verifyToken(token)
   if (!payload) return
 
-  const tokenHash = hashToken(token)
+  const jti = payload.jti
+  if (!jti) return
+
   await db.insert(revokedTokens).values({
     id: uuidv4(),
-    token_hash: tokenHash,
-    token_type: 'ACCESS',
+    token_jti: jti,
     user_id: payload.userId,
-    clinic_id: payload.clinicId,
     revoked_at: new Date(),
     reason,
     expires_at: new Date(payload.exp! * 1000),
@@ -316,15 +318,13 @@ export async function invalidateAllUserSessions(userId: string): Promise<void> {
   const userSessions = await db
     .select()
     .from(sessions)
-    .where(and(eq(sessions.user_id, userId), eq(sessions.is_revoked, false)))
+    .where(and(eq(sessions.user_id, userId), eq(sessions.is_active, true)))
 
   for (const session of userSessions) {
     await db.insert(revokedTokens).values({
       id: uuidv4(),
-      token_hash: session.refresh_token_hash,
-      token_type: 'REFRESH',
+      token_jti: session.refresh_token_hash,
       user_id: session.user_id,
-      clinic_id: session.clinic_id,
       revoked_at: new Date(),
       reason: 'PASSWORD_CHANGE',
       expires_at: session.expires_at,
@@ -333,8 +333,8 @@ export async function invalidateAllUserSessions(userId: string): Promise<void> {
 
   await db
     .update(sessions)
-    .set({ is_revoked: true, updated_at: new Date() })
-    .where(and(eq(sessions.user_id, userId), eq(sessions.is_revoked, false)))
+    .set({ is_active: false, updated_at: new Date() })
+    .where(and(eq(sessions.user_id, userId), eq(sessions.is_active, true)))
 }
 
 /**
@@ -354,17 +354,15 @@ export async function invalidateDeviceSessions(
       and(
         eq(sessions.user_id, userId),
         eq(sessions.device_id, deviceId),
-        eq(sessions.is_revoked, false)
+        eq(sessions.is_active, true)
       )
     )
 
   for (const session of deviceSessions) {
     await db.insert(revokedTokens).values({
       id: uuidv4(),
-      token_hash: session.refresh_token_hash,
-      token_type: 'REFRESH',
+      token_jti: session.refresh_token_hash,
       user_id: session.user_id,
-      clinic_id: session.clinic_id,
       revoked_at: new Date(),
       reason: 'DEVICE_UNREGISTERED',
       expires_at: session.expires_at,
@@ -373,19 +371,19 @@ export async function invalidateDeviceSessions(
 
   await db
     .update(sessions)
-    .set({ is_revoked: true, updated_at: new Date() })
+    .set({ is_active: false, updated_at: new Date() })
     .where(
       and(
         eq(sessions.user_id, userId),
         eq(sessions.device_id, deviceId),
-        eq(sessions.is_revoked, false)
+        eq(sessions.is_active, true)
       )
     )
 }
 
 /**
  * Validate that a session is still active.
- * Checks: not revoked, not expired, activity within max idle time.
+ * Checks: not inactive, not expired, activity within max idle time.
  */
 export async function validateSession(
   sessionId: string,
@@ -400,7 +398,7 @@ export async function validateSession(
     .limit(1)
 
   if (!session) return false
-  if (session.is_revoked) return false
+  if (!session.is_active) return false
   if (new Date(session.expires_at) < new Date()) return false
 
   const idleTime = Date.now() - new Date(session.last_activity_at).getTime()

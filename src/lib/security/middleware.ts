@@ -176,11 +176,13 @@ export function getRateLimitHeaders(
 /**
  * Higher-order function to apply rate limiting to an API route.
  */
+export const rateLimitConfig = RATE_LIMITS
+
 export function withRateLimit(endpointType: string = 'default') {
   return (
-    handler: (req: Request, ...args: any[]) => Promise<Response>
-  ): ((req: Request, ...args: any[]) => Promise<Response>) => {
-    return async (req: Request, ...args: any[]) => {
+    handler: (req: Request, ...args: unknown[]) => Promise<Response>
+  ): ((req: Request, ...args: unknown[]) => Promise<Response>) => {
+    return async (req: Request, ...args: unknown[]) => {
       // Get client IP from headers
       const forwardedFor = req.headers.get('x-forwarded-for')
       const ip = forwardedFor?.split(',')[0]?.trim() || 'unknown'
@@ -226,7 +228,7 @@ export function withRateLimit(endpointType: string = 'default') {
  * Uses simple runtime validation (can be extended with Zod).
  */
 export function validateBody<T>(
-  body: any,
+  body: unknown,
   requiredFields: string[]
 ): { valid: true; data: T } | { valid: false; error: string; missingFields: string[] } {
   if (!body || typeof body !== 'object') {

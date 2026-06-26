@@ -2,13 +2,15 @@ import { drizzle } from "drizzle-orm/pglite";
 import { PGlite } from "@electric-sql/pglite";
 import { localSchema } from "./schema";
 
-let localDb: ReturnType<typeof drizzle> | null = null;
+type LocalDatabase = ReturnType<typeof drizzle<typeof localSchema>>;
+
+let localDb: LocalDatabase | null = null;
 let localClient: PGlite | null = null;
 
-export function getLocalDb() {
+export function getLocalDb(): LocalDatabase {
   if (!localDb) {
     localClient = new PGlite({ dataDir: "./pglite-local-db" });
-    localDb = drizzle(localClient, { schema: localSchema });
+    localDb = drizzle(localClient, { schema: localSchema }) as LocalDatabase;
   }
   return localDb;
 }

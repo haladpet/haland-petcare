@@ -11,10 +11,11 @@ export interface AuditEntry {
   clinic_id?: string | null
   entity?: string | null
   entity_id?: string | null
-  changes?: any
+  changes?: unknown
+  details?: unknown
   resource?: string | null
   status?: 'PERMITTED' | 'DENIED' | 'SUCCESS' | 'CONFLICT' | 'PARTIAL' | 'INFO'
-  metadata?: any
+  metadata?: unknown
   ip_address?: string | null
 }
 
@@ -59,7 +60,9 @@ export async function writeAuditLog(entry: AuditEntry): Promise<void> {
       action: entry.action,
       entity: entry.entity || null,
       entity_id: entry.entity_id || null,
-      changes: entry.changes ? (typeof entry.changes === 'string' ? entry.changes : JSON.stringify(entry.changes)) : null,
+      changes: entry.changes || entry.details
+        ? JSON.stringify(entry.changes || entry.details)
+        : null,
       ip_address: entry.ip_address || null,
       created_at: new Date(),
     })
@@ -121,7 +124,9 @@ async function drainRetryQueue() {
         action: failed.entry.action,
         entity: failed.entry.entity || null,
         entity_id: failed.entry.entity_id || null,
-        changes: failed.entry.changes ? JSON.stringify(failed.entry.changes) : null,
+        changes: failed.entry.changes || failed.entry.details
+          ? JSON.stringify(failed.entry.changes || failed.entry.details)
+          : null,
         ip_address: failed.entry.ip_address || null,
         created_at: new Date(),
       })
@@ -197,7 +202,9 @@ export async function reprocessDeadLetters(): Promise<{
         action: entry.entry.action,
         entity: entry.entry.entity || null,
         entity_id: entry.entry.entity_id || null,
-        changes: entry.entry.changes ? JSON.stringify(entry.entry.changes) : null,
+        changes: entry.entry.changes || entry.entry.details
+          ? JSON.stringify(entry.entry.changes || entry.entry.details)
+          : null,
         ip_address: entry.entry.ip_address || null,
         created_at: new Date(),
       })

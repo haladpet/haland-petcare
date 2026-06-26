@@ -1,4 +1,5 @@
-import { test as base, type Page } from '@playwright/test'
+/* eslint-disable react-hooks/rules-of-hooks */
+import { test as base } from '@playwright/test'
 
 export interface AuthFixtures {
   loginAsOwner: () => Promise<void>

@@ -1,6 +1,6 @@
 import { getServerDb } from '@/lib/db/server/client'
 import { eq, and, sql } from 'drizzle-orm'
-import type { PgTable } from 'drizzle-orm/pg-core'
+import type { PgTable, TableConfig } from 'drizzle-orm/pg-core'
 
 /**
  * Tenant Isolation Guard
@@ -80,25 +80,25 @@ export function assertClinicOwnership(
  * Build a WHERE clause that includes clinic_id filter.
  * Use this in all repository queries to ensure tenant isolation.
  */
-export function withClinicFilter<T extends Record<string, any>>(
-  table: PgTable<T>,
+export function withClinicFilter(
+  table: PgTable<TableConfig>,
   clinicId: string
 ) {
   requireClinicScope(clinicId, `withClinicFilter(${table})`)
-  // @ts-expect-error - dynamic column access
+  // @ts-expect-error - dynamic column access on generic table
   return eq(table.clinic_id, clinicId)
 }
 
 /**
  * Build a compound WHERE clause with clinic_id AND additional conditions.
  */
-export function withClinicAndFilter<T extends Record<string, any>>(
-  table: PgTable<T>,
+export function withClinicAndFilter(
+  table: PgTable<TableConfig>,
   clinicId: string,
-  ...additionalConditions: any[]
+  ...additionalConditions: ReturnType<typeof eq>[]
 ) {
   requireClinicScope(clinicId, `withClinicAndFilter(${table})`)
-  // @ts-expect-error - dynamic column access
+  // @ts-expect-error - dynamic column access on generic table
   return and(eq(table.clinic_id, clinicId), ...additionalConditions)
 }
 
@@ -128,7 +128,7 @@ export function createTenantQuery(clinicId: string) {
     /**
      * Select records scoped to this clinic.
      */
-    selectFrom: <T extends Record<string, any>>(table: PgTable<T>) => {
+    selectFrom: (table: PgTable<TableConfig>) => {
       const db = getServerDb()
       return {
         all: async () => {
@@ -143,7 +143,7 @@ export function createTenantQuery(clinicId: string) {
           ).limit(1)
           return rows[0] || null
         },
-        where: async (condition: any) => {
+        where: async (condition: ReturnType<typeof eq>) => {
           // @ts-expect-error - dynamic column access
           return db.select().from(table).where(
             // @ts-expect-error - dynamic column access

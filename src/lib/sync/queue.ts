@@ -1,17 +1,29 @@
 import { getLocalDb } from '@/lib/db/local/client'
+import { syncQueue } from '@/lib/db/local/schema'
+import { v4 as uuidv4 } from 'uuid'
 
-export async function writeToSyncQueue(tableName: string, recordId: string, operation: 'CREATE' | 'UPDATE' | 'DELETE', payload: any) {
+interface SyncQueuePayload {
+  [key: string]: unknown
+}
+
+export const writeToSyncQueue = async (
+  entity: string,
+  entityId: string,
+  action: 'CREATE' | 'UPDATE' | 'DELETE',
+  payload: SyncQueuePayload
+) => {
   const db = getLocalDb()
-  // insert into sync_queue local
-  try {
-    await db.insert((db as any).sync_queue).values({
-      entity: tableName,
-      entity_id: recordId,
-      action: operation,
-      payload: payload ? JSON.stringify(payload) : null,
-      created_at: new Date(),
-    })
-  } catch (err) {
-    console.error('writeToSyncQueue error', err)
-  }
+  const id = uuidv4()
+  await db.insert(syncQueue).values({
+    id,
+    entity,
+    entity_id: entityId,
+    action,
+    payload,
+    schema_version: 1,
+    status: 'PENDING',
+    created_at: new Date(),
+    updated_at: new Date(),
+  })
+  return id
 }

@@ -1,7 +1,34 @@
 import { getLocalDb } from '@/lib/db/local/client'
-import { conflictQueue } from '@/lib/db/local/schema'
+import { conflictQueue, syncQueue } from '@/lib/db/local/schema'
 import { v4 as uuidv4 } from 'uuid'
-import { eq } from 'drizzle-orm'
+import { eq, desc } from 'drizzle-orm'
+
+// ─── Types ───────────────────────────────────────────────────────
+
+interface SyncQueueItem {
+  id: string
+  entity: string
+  entity_id: string | null
+  action: string
+  payload: unknown
+  schema_version: number
+  status: string
+  created_at: Date
+  updated_at: Date
+}
+
+interface ConflictData {
+  entity: string
+  entity_id: string | null
+  local_data: unknown
+  local_action: string
+  server_data: unknown
+  conflicting_items: Array<{
+    id: string
+    action: string
+    payload: unknown
+  }>
+}
 
 // ─── detectConflict ─────────────────────────────────────────────
 // Compares local record with server record.
@@ -13,7 +40,7 @@ export async function detectConflict(item: {
   entity: string
   entity_id: string
   action: string
-  payload: any
+  payload: unknown
   schema_version: number
 }): Promise<{ hasConflict: boolean; conflictId?: string }> {
   const db = getLocalDb()
@@ -36,7 +63,7 @@ export async function detectConflict(item: {
   // Check if any existing unresolved conflict for this entity_id
   const matchingConflict = existingConflicts.find(
     (c) => {
-      const data = c.conflict_data as any
+      const data = c.conflict_data as ConflictData | null
       return data?.entity_id === item.entity_id && !c.resolved
     }
   )
@@ -47,25 +74,20 @@ export async function detectConflict(item: {
   }
 
   // For UPDATE: compare local payload with what we know about server state
-  // In a real implementation, we'd fetch the server record and compare versions.
-  // Here we use a heuristic: if the payload contains a version field and
-  // there's evidence of concurrent modification, flag as conflict.
   const payload = typeof item.payload === 'string'
     ? JSON.parse(item.payload)
     : item.payload
 
   // Check if this entity has been modified by another device
-  // (simplified: check if there are other sync_queue entries for same entity_id
-  // from different sources)
   const otherChanges = await db
     .select()
-    .from(db['sync_queue'] as any)
+    .from(syncQueue)
     .where(
-      eq((db as any).sync_queue.entity, item.entity)
+      eq(syncQueue.entity, item.entity)
     )
 
   const concurrentChanges = otherChanges.filter(
-    (c: any) =>
+    (c: SyncQueueItem) =>
       c.entity_id === item.entity_id &&
       c.id !== item.id &&
       c.status === 'PENDING'
@@ -74,13 +96,13 @@ export async function detectConflict(item: {
   if (concurrentChanges.length > 0) {
     // Multiple pending changes for same record → potential conflict
     const conflictId = uuidv4()
-    const conflictData = {
+    const conflictData: ConflictData = {
       entity: item.entity,
       entity_id: item.entity_id,
       local_data: payload,
       local_action: item.action,
-      server_data: null, // Would be populated from server in real impl
-      conflicting_items: concurrentChanges.map((c: any) => ({
+      server_data: null,
+      conflicting_items: concurrentChanges.map((c: SyncQueueItem) => ({
         id: c.id,
         action: c.action,
         payload: typeof c.payload === 'string' ? JSON.parse(c.payload) : c.payload,
@@ -108,7 +130,7 @@ export async function detectConflict(item: {
 export async function resolveConflict(
   conflictId: string,
   resolution: 'LOCAL_WINS' | 'SERVER_WINS' | 'MERGE',
-  mergedData?: any
+  mergedData?: unknown
 ) {
   const db = getLocalDb()
 
@@ -122,7 +144,7 @@ export async function resolveConflict(
   if (conflicts[0].resolved) throw new Error('Conflict already resolved')
 
   const conflict = conflicts[0]
-  const data = conflict.conflict_data as any
+  const data = conflict.conflict_data as ConflictData | null
 
   // Apply resolution
   const resolutionData = {
@@ -141,12 +163,12 @@ export async function resolveConflict(
     .where(eq(conflictQueue.id, conflictId))
 
   // Mark related sync_queue items as resolved
-  if (data.conflicting_items) {
+  if (data?.conflicting_items) {
     for (const item of data.conflicting_items) {
       await db
-        .update((db as any).sync_queue)
+        .update(syncQueue)
         .set({ status: 'RESOLVED', updated_at: new Date() })
-        .where(eq((db as any).sync_queue.id, item.id))
+        .where(eq(syncQueue.id, item.id))
     }
   }
 
@@ -165,7 +187,7 @@ export async function getPendingConflicts() {
     .select()
     .from(conflictQueue)
     .where(eq(conflictQueue.resolved, false))
-    .orderBy(db['conflictQueue'].created_at as any)
+    .orderBy(desc(conflictQueue.created_at))
 }
 
 // ─── getConflictById ────────────────────────────────────────────

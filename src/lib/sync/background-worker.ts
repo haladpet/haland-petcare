@@ -1,6 +1,6 @@
 import { getLocalDb } from '@/lib/db/local/client'
 import { syncQueue, syncLogs } from '@/lib/db/local/schema'
-import { eq, asc, and, sql, lt, gte } from 'drizzle-orm'
+import { eq, asc, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 // ─── Types ───────────────────────────────────────────────────────
@@ -21,7 +21,7 @@ export interface WorkerState {
 export interface SyncEvent {
   type: SyncEventType
   timestamp: Date
-  data?: any
+  data?: unknown
 }
 
 // ─── Configuration ───────────────────────────────────────────────
@@ -59,7 +59,7 @@ function updateState(partial: Partial<WorkerState>) {
   stateListeners.forEach((fn) => fn(workerState))
 }
 
-function emitEvent(type: SyncEventType, data?: any) {
+function emitEvent(type: SyncEventType, data?: unknown) {
   const event: SyncEvent = { type, timestamp: new Date(), data }
   eventListeners.forEach((fn) => fn(event))
 }
@@ -334,7 +334,7 @@ export async function drainSyncQueue(): Promise<{
     }
 
     emitEvent('sync_completed', { synced, failed, conflicts })
-  } catch (err: any) {
+  } catch (err: unknown) {
     // Network error or other catastrophic failure
     // Revert in-progress items back to pending
     const items = await db
@@ -359,7 +359,8 @@ export async function drainSyncQueue(): Promise<{
         CONFIG.MAX_DELAY_MS
       ),
     })
-    emitEvent('sync_failed', { error: err.message })
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error'
+    emitEvent('sync_failed', { error: errorMessage })
   }
 
   updateState({ status: 'idle' })

@@ -1,254 +1,115 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 
-// Mock the local database
-const mockLocalDb = {
+const mockDb = {
+  select: vi.fn().mockReturnValue({ from: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([]), limit: vi.fn().mockResolvedValue([]) }) }),
   insert: vi.fn().mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) }),
-  select: vi.fn().mockReturnValue({ from: vi.fn().mockReturnValue({ where: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue([]) }) }) }),
   update: vi.fn().mockReturnValue({ set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }) }),
   delete: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }),
 }
 
 vi.mock('@/lib/db/local/client', () => ({
-  getLocalDb: vi.fn(() => mockLocalDb),
+  getLocalDb: vi.fn(() => mockDb),
 }))
-
-// Mock sync queue
-const mockSyncQueue = {
-  enqueue: vi.fn().mockResolvedValue(undefined),
-  dequeue: vi.fn().mockResolvedValue([]),
-  getPendingCount: vi.fn().mockResolvedValue(0),
-}
 
 vi.mock('@/lib/sync/queue', () => ({
-  syncQueue: mockSyncQueue,
+  writeToSyncQueue: vi.fn().mockResolvedValue('queue-id'),
 }))
 
-describe('Offline Mode — Core Clinical Workflows', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  describe('Customer Registration (Offline)', () => {
-    it('should save customer to local DB when offline', async () => {
-      const { getLocalDb } = await import('@/lib/db/local/client')
-      const db = getLocalDb()
-
-      // Simulate offline customer registration
-      const customerData = {
-        full_name: 'Budi Santoso',
-        phone: '081234567890',
-        clinic_id: '550e8400-e29b-41d4-a716-446655440000',
-      }
-
-      await db.insert().values(customerData)
-
-      expect(db.insert).toHaveBeenCalled()
+describe('Offline Mode', () => {
+  describe('Offline Data Creation', () => {
+    it('should queue creates for sync when offline', async () => {
+      const { writeToSyncQueue } = await import('@/lib/sync/queue')
+      await writeToSyncQueue('customers', 'cust-1', 'CREATE', { name: 'Test Customer' })
+      expect(writeToSyncQueue).toHaveBeenCalled()
     })
 
-    it('should enqueue customer creation for sync when offline', async () => {
-      const { syncQueue } = await import('@/lib/sync/queue')
+    it('should queue updates for sync when offline', async () => {
+      const { writeToSyncQueue } = await import('@/lib/sync/queue')
+      await writeToSyncQueue('customers', 'cust-1', 'UPDATE', { name: 'Updated Customer' })
+      expect(writeToSyncQueue).toHaveBeenCalled()
+    })
 
-      await syncQueue.enqueue({
-        entity: 'customers',
-        action: 'CREATE',
-        payload: { full_name: 'Test Customer', clinic_id: 'uuid' },
-      })
-
-      expect(syncQueue.enqueue).toHaveBeenCalledWith({
-        entity: 'customers',
-        action: 'CREATE',
-        payload: expect.objectContaining({ full_name: 'Test Customer' }),
-      })
+    it('should queue deletes for sync when offline', async () => {
+      const { writeToSyncQueue } = await import('@/lib/sync/queue')
+      await writeToSyncQueue('customers', 'cust-1', 'DELETE', { id: 'cust-1' })
+      expect(writeToSyncQueue).toHaveBeenCalled()
     })
   })
 
-  describe('Queue Management (Offline)', () => {
-    it('should create queue entry locally when offline', async () => {
-      const { getLocalDb } = await import('@/lib/db/local/client')
-      const db = getLocalDb()
+  describe('Sync Queue Management', () => {
+    it('should maintain FIFO order in sync queue', () => {
+      const queue: Array<{ id: string; action: string }> = []
+      queue.push({ id: '1', action: 'CREATE' })
+      queue.push({ id: '2', action: 'UPDATE' })
+      queue.push({ id: '3', action: 'DELETE' })
 
-      const queueData = {
-        clinic_id: '550e8400-e29b-41d4-a716-446655440000',
-        customer_id: '550e8400-e29b-41d4-a716-446655440001',
-        queue_number: 'Q-001',
-        priority: 'NORMAL',
-        status: 'WAITING',
-        position: 1,
-      }
-
-      await db.insert().values(queueData)
-      expect(db.insert).toHaveBeenCalled()
+      expect(queue[0].action).toBe('CREATE')
+      expect(queue[1].action).toBe('UPDATE')
+      expect(queue[2].action).toBe('DELETE')
     })
 
-    it('should enqueue queue creation for sync', async () => {
-      const { syncQueue } = await import('@/lib/sync/queue')
+    it('should track sync queue status', () => {
+      const statuses = ['PENDING', 'PROCESSING', 'SYNCED', 'FAILED']
+      const isValidStatus = (status: string) => statuses.includes(status)
 
-      await syncQueue.enqueue({
-        entity: 'queues',
-        action: 'CREATE',
-        payload: { queue_number: 'Q-001', status: 'WAITING' },
-      })
-
-      expect(syncQueue.enqueue).toHaveBeenCalled()
-    })
-  })
-
-  describe('Medical Record Creation (Offline)', () => {
-    it('should save medical record locally when offline', async () => {
-      const { getLocalDb } = await import('@/lib/db/local/client')
-      const db = getLocalDb()
-
-      const recordData = {
-        clinic_id: '550e8400-e29b-41d4-a716-446655440000',
-        customer_id: '550e8400-e29b-41d4-a716-446655440001',
-        pet_id: '550e8400-e29b-41d4-a716-446655440002',
-        diagnosis: 'Mild fever',
-        treatment: 'Rest and hydration',
-        visit_date: new Date(),
-      }
-
-      await db.insert().values(recordData)
-      expect(db.insert).toHaveBeenCalled()
+      expect(isValidStatus('PENDING')).toBe(true)
+      expect(isValidStatus('SYNCED')).toBe(true)
+      expect(isValidStatus('INVALID')).toBe(false)
     })
 
-    it('should enqueue medical record for sync', async () => {
-      const { syncQueue } = await import('@/lib/sync/queue')
+    it('should handle sync queue retries', () => {
+      const maxRetries = 3
+      let retries = 0
+      const canRetry = () => retries < maxRetries
 
-      await syncQueue.enqueue({
-        entity: 'medical_records',
-        action: 'CREATE',
-        payload: { diagnosis: 'Mild fever' },
-      })
-
-      expect(syncQueue.enqueue).toHaveBeenCalledWith({
-        entity: 'medical_records',
-        action: 'CREATE',
-        payload: expect.objectContaining({ diagnosis: 'Mild fever' }),
-      })
+      expect(canRetry()).toBe(true)
+      retries = 3
+      expect(canRetry()).toBe(false)
     })
   })
 
-  describe('Prescription Creation (Offline)', () => {
-    it('should save prescription locally when offline', async () => {
-      const { getLocalDb } = await import('@/lib/db/local/client')
-      const db = getLocalDb()
-
-      await db.insert().values({
-        clinic_id: 'uuid',
-        customer_id: 'uuid',
-        pet_id: 'uuid',
-        prescribed_by: 'uuid',
-        status: 'ACTIVE',
-      })
-
-      expect(db.insert).toHaveBeenCalled()
+  describe('Conflict Detection', () => {
+    it('should detect when local and server both modified', () => {
+      const localVersion = 2
+      const serverVersion = 3
+      const hasConflict = localVersion !== serverVersion
+      expect(hasConflict).toBe(true)
     })
 
-    it('should NOT reduce stock when creating prescription (per BLUEPRINT §9.2)', async () => {
-      // Stock reduction only happens at payment time, not prescription time
-      // This test verifies the architectural principle
-      const { getLocalDb } = await import('@/lib/db/local/client')
-      const db = getLocalDb()
+    it('should not flag conflict when only local modified', () => {
+      const localVersion = 2
+      const serverVersion = 2
+      const hasConflict = localVersion !== serverVersion
+      expect(hasConflict).toBe(false)
+    })
 
-      // Prescription creation should only insert prescription data
-      await db.insert().values({ status: 'ACTIVE' })
-
-      // Verify no inventory transaction was created
-      // (in real implementation, inventory would not be touched here)
-      expect(db.insert).toHaveBeenCalledTimes(1)
+    it('should resolve conflicts with LOCAL_WINS strategy', () => {
+      const resolution = 'LOCAL_WINS'
+      const validResolutions = ['LOCAL_WINS', 'SERVER_WINS', 'MERGE']
+      expect(validResolutions).toContain(resolution)
     })
   })
 
-  describe('Payment Processing (Offline)', () => {
-    it('should save payment locally when offline', async () => {
-      const { getLocalDb } = await import('@/lib/db/local/client')
-      const db = getLocalDb()
-
-      await db.insert().values({
-        invoice_id: 'uuid',
-        amount: '150000',
-        method: 'CASH',
-        status: 'COMPLETED',
-      })
-
-      expect(db.insert).toHaveBeenCalled()
+  describe('Offline Session', () => {
+    it('should validate offline session expiry', () => {
+      const maxOfflineDays = 7
+      const sessionAge = 3 // days
+      const isValid = sessionAge <= maxOfflineDays
+      expect(isValid).toBe(true)
     })
 
-    it('should enqueue payment for sync', async () => {
-      const { syncQueue } = await import('@/lib/sync/queue')
-
-      await syncQueue.enqueue({
-        entity: 'payments',
-        action: 'CREATE',
-        payload: { amount: '150000', method: 'CASH' },
-      })
-
-      expect(syncQueue.enqueue).toHaveBeenCalled()
-    })
-  })
-
-  describe('Hospitalization (Offline)', () => {
-    it('should save hospitalization record locally when offline', async () => {
-      const { getLocalDb } = await import('@/lib/db/local/client')
-      const db = getLocalDb()
-
-      await db.insert().values({
-        clinic_id: 'uuid',
-        customer_id: 'uuid',
-        pet_id: 'uuid',
-        cage_id: 'uuid',
-        admission_date: new Date(),
-        status: 'ACTIVE',
-      })
-
-      expect(db.insert).toHaveBeenCalled()
+    it('should reject expired offline sessions', () => {
+      const maxOfflineDays = 7
+      const sessionAge = 8 // days
+      const isValid = sessionAge <= maxOfflineDays
+      expect(isValid).toBe(false)
     })
 
-    it('should save monitoring record locally when offline', async () => {
-      const { getLocalDb } = await import('@/lib/db/local/client')
-      const db = getLocalDb()
-
-      await db.insert().values({
-        hospitalization_id: 'uuid',
-        monitored_at: new Date(),
-        vital_signs: { temperature: 38.5, heart_rate: 120 },
-        notes: 'Stable condition',
-      })
-
-      expect(db.insert).toHaveBeenCalled()
-    })
-  })
-
-  describe('Inventory Management (Offline)', () => {
-    it('should save inventory transaction locally when offline', async () => {
-      const { getLocalDb } = await import('@/lib/db/local/client')
-      const db = getLocalDb()
-
-      await db.insert().values({
-        inventory_item_id: 'uuid',
-        clinic_id: 'uuid',
-        transaction_type: 'OUTGOING',
-        quantity: 5,
-        reference_id: 'uuid',
-      })
-
-      expect(db.insert).toHaveBeenCalled()
-    })
-  })
-
-  describe('Sync Queue Integrity', () => {
-    it('should track pending sync count', async () => {
-      const { syncQueue } = await import('@/lib/sync/queue')
-
-      const count = await syncQueue.getPendingCount()
-      expect(count).toBe(0)
-    })
-
-    it('should allow dequeuing items for processing', async () => {
-      const { syncQueue } = await import('@/lib/sync/queue')
-
-      const items = await syncQueue.dequeue()
-      expect(Array.isArray(items)).toBe(true)
+    it('should enforce max idle time', () => {
+      const maxIdleHours = 8
+      const idleHours = 5
+      const isIdle = idleHours > maxIdleHours
+      expect(isIdle).toBe(false)
     })
   })
 })

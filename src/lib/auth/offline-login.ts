@@ -2,7 +2,7 @@ import { verifyToken } from './jwt'
 import { getLocalDb } from '@/lib/db/local/client'
 import { localSessions } from '@/lib/db/local/schema'
 import { eq, and, sql } from 'drizzle-orm'
-import { createHash, createHmac, randomBytes } from 'crypto'
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'crypto'
 import { v4 as uuidv4 } from 'uuid'
 
 // ─── Configuration ───────────────────────────────────────────────
@@ -293,9 +293,7 @@ function verifyDeviceFingerprint(
     .digest('hex')
 
   // Compare with stored device ID (which is the HMAC of the original fingerprint)
-  return crypto.timingSafeEqual
-    ? timingSafeEqual(Buffer.from(expectedHash), Buffer.from(storedDeviceId))
-    : expectedHash === storedDeviceId
+  return timingSafeEqual(Buffer.from(expectedHash), Buffer.from(storedDeviceId))
 }
 
 /**

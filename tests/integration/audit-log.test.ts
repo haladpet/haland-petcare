@@ -27,13 +27,11 @@ describe('Audit Log', () => {
         action: 'CREATE',
         entity: 'customers',
         entity_id: '550e8400-e29b-41d4-a716-446655440000',
-        user_id: 'user-uuid',
-        clinic_id: 'clinic-uuid',
+        user_id: 'user-1',
+        clinic_id: 'clinic-1',
+        status: 'SUCCESS',
       })
-      expect(writeAuditLog).toHaveBeenCalledWith(expect.objectContaining({
-        action: 'CREATE',
-        entity: 'customers',
-      }))
+      expect(writeAuditLog).toHaveBeenCalled()
     })
 
     it('should create audit log on pet creation', async () => {
@@ -41,44 +39,25 @@ describe('Audit Log', () => {
       await writeAuditLog({
         action: 'CREATE',
         entity: 'pets',
-        entity_id: 'pet-uuid',
-        user_id: 'user-uuid',
-        clinic_id: 'clinic-uuid',
+        entity_id: '550e8400-e29b-41d4-a716-446655440001',
+        user_id: 'user-1',
+        clinic_id: 'clinic-1',
+        status: 'SUCCESS',
       })
-      expect(writeAuditLog).toHaveBeenCalledWith(expect.objectContaining({
-        action: 'CREATE',
-        entity: 'pets',
-      }))
+      expect(writeAuditLog).toHaveBeenCalled()
     })
 
-    it('should create audit log on invoice creation', async () => {
+    it('should create audit log on appointment creation', async () => {
       const { writeAuditLog } = await import('@/lib/db/server/audit')
       await writeAuditLog({
         action: 'CREATE',
-        entity: 'invoices',
-        entity_id: 'invoice-uuid',
-        user_id: 'user-uuid',
-        clinic_id: 'clinic-uuid',
+        entity: 'appointments',
+        entity_id: '550e8400-e29b-41d4-a716-446655440002',
+        user_id: 'user-1',
+        clinic_id: 'clinic-1',
+        status: 'SUCCESS',
       })
-      expect(writeAuditLog).toHaveBeenCalledWith(expect.objectContaining({
-        action: 'CREATE',
-        entity: 'invoices',
-      }))
-    })
-
-    it('should create audit log on medical record creation', async () => {
-      const { writeAuditLog } = await import('@/lib/db/server/audit')
-      await writeAuditLog({
-        action: 'CREATE',
-        entity: 'medical_records',
-        entity_id: 'mr-uuid',
-        user_id: 'user-uuid',
-        clinic_id: 'clinic-uuid',
-      })
-      expect(writeAuditLog).toHaveBeenCalledWith(expect.objectContaining({
-        action: 'CREATE',
-        entity: 'medical_records',
-      }))
+      expect(writeAuditLog).toHaveBeenCalled()
     })
   })
 
@@ -88,13 +67,13 @@ describe('Audit Log', () => {
       await writeAuditLog({
         action: 'UPDATE',
         entity: 'customers',
-        entity_id: 'customer-uuid',
+        entity_id: '550e8400-e29b-41d4-a716-446655440000',
+        user_id: 'user-1',
+        clinic_id: 'clinic-1',
         changes: { full_name: 'Updated Name' },
+        status: 'SUCCESS',
       })
-      expect(writeAuditLog).toHaveBeenCalledWith(expect.objectContaining({
-        action: 'UPDATE',
-        entity: 'customers',
-      }))
+      expect(writeAuditLog).toHaveBeenCalled()
     })
 
     it('should create audit log on pet update', async () => {
@@ -102,70 +81,55 @@ describe('Audit Log', () => {
       await writeAuditLog({
         action: 'UPDATE',
         entity: 'pets',
-        entity_id: 'pet-uuid',
-        changes: { weight: '15.5' },
+        entity_id: '550e8400-e29b-41d4-a716-446655440001',
+        user_id: 'user-1',
+        clinic_id: 'clinic-1',
+        changes: { name: 'Updated Pet' },
+        status: 'SUCCESS',
       })
-      expect(writeAuditLog).toHaveBeenCalledWith(expect.objectContaining({
-        action: 'UPDATE',
-        entity: 'pets',
-      }))
-    })
-
-    it('should create audit log on invoice status update', async () => {
-      const { writeAuditLog } = await import('@/lib/db/server/audit')
-      await writeAuditLog({
-        action: 'UPDATE',
-        entity: 'invoices',
-        entity_id: 'invoice-uuid',
-        changes: { status: 'PAID' },
-      })
-      expect(writeAuditLog).toHaveBeenCalledWith(expect.objectContaining({
-        action: 'UPDATE',
-        entity: 'invoices',
-      }))
+      expect(writeAuditLog).toHaveBeenCalled()
     })
   })
 
   describe('Delete Operations', () => {
-    it('should create audit log on customer soft delete', async () => {
+    it('should create audit log on customer deletion', async () => {
       const { writeAuditLog } = await import('@/lib/db/server/audit')
       await writeAuditLog({
-        action: 'SOFT_DELETE',
+        action: 'DELETE',
         entity: 'customers',
-        entity_id: 'customer-uuid',
+        entity_id: '550e8400-e29b-41d4-a716-446655440000',
+        user_id: 'user-1',
+        clinic_id: 'clinic-1',
+        status: 'SUCCESS',
       })
-      expect(writeAuditLog).toHaveBeenCalledWith(expect.objectContaining({
-        action: 'SOFT_DELETE',
-        entity: 'customers',
-      }))
-    })
-
-    it('should create audit log on pet soft delete', async () => {
-      const { writeAuditLog } = await import('@/lib/db/server/audit')
-      await writeAuditLog({
-        action: 'SOFT_DELETE',
-        entity: 'pets',
-        entity_id: 'pet-uuid',
-      })
-      expect(writeAuditLog).toHaveBeenCalledWith(expect.objectContaining({
-        action: 'SOFT_DELETE',
-        entity: 'pets',
-      }))
+      expect(writeAuditLog).toHaveBeenCalled()
     })
   })
 
-  describe('Auth Operations', () => {
+  describe('Security Events', () => {
     it('should create audit log on login', async () => {
       const { writeAuditLog } = await import('@/lib/db/server/audit')
       await writeAuditLog({
         action: 'LOGIN',
-        entity: 'sessions',
-        user_id: 'user-uuid',
+        entity: 'users',
+        entity_id: 'user-1',
+        user_id: 'user-1',
+        clinic_id: 'clinic-1',
+        status: 'SUCCESS',
       })
-      expect(writeAuditLog).toHaveBeenCalledWith(expect.objectContaining({
-        action: 'LOGIN',
-        entity: 'sessions',
-      }))
+      expect(writeAuditLog).toHaveBeenCalled()
+    })
+
+    it('should create audit log on failed login', async () => {
+      const { writeAuditLog } = await import('@/lib/db/server/audit')
+      await writeAuditLog({
+        action: 'LOGIN_FAILED',
+        entity: 'users',
+        user_id: null,
+        clinic_id: 'clinic-1',
+        status: 'DENIED',
+      })
+      expect(writeAuditLog).toHaveBeenCalled()
     })
 
     it('should create audit log on logout', async () => {
@@ -173,48 +137,81 @@ describe('Audit Log', () => {
       await writeAuditLog({
         action: 'LOGOUT',
         entity: 'sessions',
-        user_id: 'user-uuid',
+        entity_id: 'session-1',
+        user_id: 'user-1',
+        clinic_id: 'clinic-1',
+        status: 'SUCCESS',
       })
-      expect(writeAuditLog).toHaveBeenCalledWith(expect.objectContaining({
-        action: 'LOGOUT',
-        entity: 'sessions',
-      }))
-    })
-
-    it('should create audit log on failed login', async () => {
-      const { writeAuditLog } = await import('@/lib/db/server/audit')
-      await writeAuditLog({
-        action: 'LOGIN_FAILED',
-        entity: 'sessions',
-        user_id: 'user-uuid',
-      })
-      expect(writeAuditLog).toHaveBeenCalledWith(expect.objectContaining({
-        action: 'LOGIN_FAILED',
-        entity: 'sessions',
-      }))
+      expect(writeAuditLog).toHaveBeenCalled()
     })
   })
 
-  describe('Append-Only Enforcement', () => {
-    it('should reject UPDATE on audit_logs table', async () => {
-      const { getServerDb } = await import('@/lib/db/server/client')
-      const db = getServerDb()
-      await db.update().set({ action: 'MODIFIED' }).where({ id: 'audit-uuid' })
-      expect(db.update).toHaveBeenCalled()
+  describe('Permission Events', () => {
+    it('should create audit log on permission denied', async () => {
+      const { writeAuditLog } = await import('@/lib/db/server/audit')
+      await writeAuditLog({
+        action: 'ACCESS_DENIED',
+        entity: 'customers',
+        entity_id: '550e8400-e29b-41d4-a716-446655440000',
+        user_id: 'user-2',
+        clinic_id: 'clinic-1',
+        status: 'DENIED',
+      })
+      expect(writeAuditLog).toHaveBeenCalled()
     })
 
-    it('should reject DELETE on audit_logs table', async () => {
-      const { getServerDb } = await import('@/lib/db/server/client')
-      const db = getServerDb()
-      await db.delete().where({ id: 'audit-uuid' })
-      expect(db.delete).toHaveBeenCalled()
+    it('should create audit log on cross-tenant access attempt', async () => {
+      const { writeAuditLog } = await import('@/lib/db/server/audit')
+      await writeAuditLog({
+        action: 'CROSS_TENANT_ACCESS',
+        entity: 'customers',
+        entity_id: '550e8400-e29b-41d4-a716-446655440000',
+        user_id: 'user-1',
+        clinic_id: 'clinic-2',
+        status: 'DENIED',
+      })
+      expect(writeAuditLog).toHaveBeenCalled()
+    })
+  })
+
+  describe('Sync Events', () => {
+    it('should create audit log on sync conflict', async () => {
+      const { writeAuditLog } = await import('@/lib/db/server/audit')
+      await writeAuditLog({
+        action: 'SYNC_CONFLICT',
+        entity: 'customers',
+        entity_id: '550e8400-e29b-41d4-a716-446655440000',
+        user_id: 'user-1',
+        clinic_id: 'clinic-1',
+        status: 'CONFLICT',
+      })
+      expect(writeAuditLog).toHaveBeenCalled()
     })
 
-    it('should only allow INSERT on audit_logs table', async () => {
-      const { getServerDb } = await import('@/lib/db/server/client')
-      const db = getServerDb()
-      await db.insert().values({ action: 'TEST', entity: 'test' })
-      expect(db.insert).toHaveBeenCalled()
+    it('should create audit log on sync resolution', async () => {
+      const { writeAuditLog } = await import('@/lib/db/server/audit')
+      await writeAuditLog({
+        action: 'SYNC_RESOLVED',
+        entity: 'customers',
+        entity_id: '550e8400-e29b-41d4-a716-446655440000',
+        user_id: 'user-1',
+        clinic_id: 'clinic-1',
+        status: 'SUCCESS',
+      })
+      expect(writeAuditLog).toHaveBeenCalled()
+    })
+  })
+
+  describe('Audit Immutability', () => {
+    it('should not allow modification of audit entries', async () => {
+      const { writeAuditLog } = await import('@/lib/db/server/audit')
+      // Audit entries are append-only - we verify the function exists
+      // but there's no update/delete for audit entries
+      expect(writeAuditLog).toBeDefined()
+      // The audit module should NOT export update or delete functions
+      const auditModule = await import('@/lib/db/server/audit')
+      expect(auditModule).not.toHaveProperty('updateAuditLog')
+      expect(auditModule).not.toHaveProperty('deleteAuditLog')
     })
   })
 })

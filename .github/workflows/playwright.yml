@@ -9,7 +9,7 @@ on:
     - cron: '0 6 * * *' # Daily at 6 AM
 
 env:
-  NODE_VERSION: 20
+  NODE_VERSION: 22
   BASE_URL: http://localhost:3000
 
 jobs:

@@ -29,7 +29,7 @@ interface LogEntry {
   duration_ms?: number
   error?: string
   stack?: string
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 }
 
 const SERVICE_NAME = 'haland-petcare'
@@ -43,7 +43,7 @@ function createLogEntry(
     clinicId?: string | null
     durationMs?: number
     error?: Error | string
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
   }
 ): LogEntry {
   return {
@@ -93,7 +93,7 @@ export const logger = {
       userId?: string | null
       clinicId?: string | null
       durationMs?: number
-      metadata?: Record<string, any>
+      metadata?: Record<string, unknown>
     }
   ) {
     writeLog(createLogEntry('info', action, message, context))
@@ -107,7 +107,7 @@ export const logger = {
       clinicId?: string | null
       durationMs?: number
       error?: Error | string
-      metadata?: Record<string, any>
+      metadata?: Record<string, unknown>
     }
   ) {
     writeLog(createLogEntry('warn', action, message, context))
@@ -121,7 +121,7 @@ export const logger = {
       clinicId?: string | null
       durationMs?: number
       error?: Error | string
-      metadata?: Record<string, any>
+      metadata?: Record<string, unknown>
     }
   ) {
     writeLog(createLogEntry('error', action, message, context))
@@ -134,7 +134,7 @@ export const logger = {
       userId?: string | null
       clinicId?: string | null
       durationMs?: number
-      metadata?: Record<string, any>
+      metadata?: Record<string, unknown>
     }
   ) {
     if (process.env.NODE_ENV !== 'production') {
@@ -155,7 +155,7 @@ export const logger = {
       synced?: number
       failed?: number
       conflicts?: number
-      metadata?: Record<string, any>
+      metadata?: Record<string, unknown>
     }
   ) {
     writeLog(
@@ -182,7 +182,7 @@ export const logger = {
       entity?: string
       entityId?: string
       status: string
-      metadata?: Record<string, any>
+      metadata?: Record<string, unknown>
     }
   ) {
     writeLog(
@@ -208,7 +208,7 @@ export const logger = {
     context: {
       userId?: string | null
       clinicId?: string | null
-      metadata?: Record<string, any>
+      metadata?: Record<string, unknown>
     }
   ) {
     writeLog(
@@ -306,14 +306,15 @@ function flushIfNeeded() {
  * Wraps a handler and catches any unhandled errors.
  */
 export function withErrorBoundary(
-  handler: (req: Request, ...args: any[]) => Promise<Response>
-): (req: Request, ...args: any[]) => Promise<Response> {
-  return async (req: Request, ...args: any[]) => {
+  handler: (req: Request, ...args: unknown[]) => Promise<Response>
+): (req: Request, ...args: unknown[]) => Promise<Response> {
+  return async (req: Request, ...args: unknown[]) => {
     try {
       return await handler(req, ...args)
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error'
       logger.error('api:unhandled_error', `Unhandled error in ${req.url}`, {
-        error: err,
+        error: err instanceof Error ? err : new Error(errorMessage),
         metadata: {
           url: req.url,
           method: req.method,
@@ -323,7 +324,7 @@ export function withErrorBoundary(
       return new Response(
         JSON.stringify({
           error: 'Internal Server Error',
-          message: process.env.NODE_ENV === 'production' ? 'An unexpected error occurred' : err.message,
+          message: process.env.NODE_ENV === 'production' ? 'An unexpected error occurred' : errorMessage,
         }),
         {
           status: 500,

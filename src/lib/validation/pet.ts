@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 const speciesEnum = ['DOG', 'CAT', 'BIRD', 'OTHER'] as const
-const ageUnitEnum = ['YEARS', 'MONTHS'] as const
+export const ageUnitEnum = ['YEARS', 'MONTHS'] as const
 const genderEnum = ['MALE', 'FEMALE', 'UNKNOWN'] as const
 
 export const CreatePetSchema = z.object({
@@ -9,6 +9,7 @@ export const CreatePetSchema = z.object({
   customer_id: z.string().uuid(),
   clinic_id: z.string().uuid(),
   species: z.enum(speciesEnum).optional(),
+  age_unit: z.enum(ageUnitEnum).optional(),
   breed: z.string().optional(),
   gender: z.enum(genderEnum).optional(),
   date_of_birth: z.string().optional(),
