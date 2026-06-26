@@ -1,5 +1,5 @@
 import { getLocalDb } from '@/lib/db/local/client'
-import { payments } from '@/lib/db/local/schema'
+import { payments, invoices } from '@/lib/db/local/schema'
 import { v4 as uuidv4 } from 'uuid'
 import { writeToSyncQueue } from '@/lib/sync/queue'
 import { writeAuditLog } from '@/lib/db/server/audit'
@@ -40,4 +40,37 @@ export const findPaymentById = async (id: string) => {
 export const findByInvoice = async (invoiceId: string) => {
   const db = getLocalDb()
   return db.select().from(payments).where(eq(payments.invoice_id, invoiceId))
+}
+
+// Alias for API route compatibility
+export const getPaymentsByInvoice = findByInvoice
+
+export const processPayment = async (data: { invoice_id: string; amount: number; method?: string }) => {
+  const db = getLocalDb()
+  const id = uuidv4()
+
+  // Create payment record
+  const record = {
+    id,
+    invoice_id: data.invoice_id,
+    amount: data.amount.toString(),
+    method: data.method || null,
+    status: 'COMPLETED',
+    paid_at: new Date(),
+    created_at: new Date(),
+    updated_at: new Date(),
+  }
+
+  await db.insert(payments).values(record)
+
+  // Update invoice status
+  await db
+    .update(invoices)
+    .set({ status: 'PAID', updated_at: new Date() })
+    .where(eq(invoices.id, data.invoice_id))
+
+  writeToSyncQueue('payments', id, 'CREATE', record)
+  writeAuditLog({ action: 'PROCESS_PAYMENT', user_id: null, clinic_id: null, status: 'INFO', details: { id, invoiceId: data.invoice_id, amount: data.amount } })
+
+  return record
 }

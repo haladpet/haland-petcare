@@ -69,14 +69,15 @@ export async function writeAuditLog(entry: AuditEntry): Promise<void> {
 
     // Success — check if we can drain the retry queue
     drainRetryQueue()
-  } catch (err: any) {
+  } catch (err: unknown) {
     // Audit write failed — queue for retry
-    console.error(`[Audit] Write failed for action "${entry.action}": ${err.message}`)
+    const errorMessage = err instanceof Error ? err.message : String(err)
+    console.error(`[Audit] Write failed for action "${entry.action}": ${errorMessage}`)
 
     retryQueue.push({
       entry,
       retries: 0,
-      lastError: err.message,
+      lastError: errorMessage,
       firstAttemptAt: new Date(),
     })
 
@@ -131,15 +132,15 @@ async function drainRetryQueue() {
         created_at: new Date(),
       })
       // Successfully retried
-    } catch (err: any) {
+    } catch (err: unknown) {
       failed.retries++
-      failed.lastError = err.message
+      failed.lastError = err instanceof Error ? err.message : String(err)
 
       if (failed.retries >= MAX_RETRIES) {
         // Move to dead letter queue
         deadLetterQueue.push(failed)
         console.error(
-          `[Audit] Dead letter after ${MAX_RETRIES} retries: action "${failed.entry.action}" — ${err.message}`
+          `[Audit] Dead letter after ${MAX_RETRIES} retries: action "${failed.entry.action}" — ${failed.lastError}`
         )
       } else {
         // Put back in retry queue
@@ -234,7 +235,7 @@ export async function queryAuditLogs(params: {
   endDate?: Date
   limit?: number
   offset?: number
-}): Promise<{ logs: any[]; total: number }> {
+}): Promise<{ logs: unknown[]; total: number }> {
   const db = getServerDb()
   const limit = Math.min(params.limit || 50, 200)
   const offset = params.offset || 0

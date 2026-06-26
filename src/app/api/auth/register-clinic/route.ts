@@ -21,18 +21,21 @@ export async function POST(req: Request) {
   try {
     await client.query('BEGIN')
     const clinicRes = await client.query(`INSERT INTO clinics(name, created_at) VALUES($1, now()) RETURNING id`, [clinic_name])
-    const clinicId = clinicRes.rows[0].id
+    const clinicId = clinicRes.rows[0]?.id
+    if (!clinicId) throw new Error('Failed to create clinic: no ID returned')
     const passwordHash = await hashPassword(password)
     const userRes = await client.query(
       `INSERT INTO server_users(email, password_hash, phone, full_name, role, clinic_id, status, created_at) VALUES($1,$2,$3,$4,'OWNER',$5,'ACTIVE',now()) RETURNING id,email,full_name,role,clinic_id,status,created_at`,
       [email, passwordHash, phone || null, full_name, clinicId]
     )
-    await client.query('COMMIT')
     const user = userRes.rows[0]
+    if (!user) throw new Error('Failed to create user: no user returned')
+    await client.query('COMMIT')
     return new Response(JSON.stringify({ ok: true, clinicId, user }), { status: 201, headers: { 'Content-Type': 'application/json' } })
-  } catch (err: any) {
+  } catch (err: unknown) {
     await client.query('ROLLBACK')
-    return new Response(JSON.stringify({ error: err.message || String(err) }), { status: 500 })
+    const message = err instanceof Error ? err.message : String(err)
+    return new Response(JSON.stringify({ error: message }), { status: 500 })
   } finally {
     client.release()
   }

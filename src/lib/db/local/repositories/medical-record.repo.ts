@@ -3,7 +3,7 @@ import { medicalRecords } from '@/lib/db/local/schema'
 import { v4 as uuidv4 } from 'uuid'
 import { writeToSyncQueue } from '@/lib/sync/queue'
 import { writeAuditLog } from '@/lib/db/server/audit'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 
 interface MedicalRecordData {
   clinic_id?: string
@@ -43,4 +43,16 @@ export const findById = async (id: string) => {
 export const findByPet = async (petId: string) => {
   const db = getLocalDb()
   return db.select().from(medicalRecords).where(eq(medicalRecords.pet_id, petId))
+}
+
+// Alias for API route compatibility
+export const findByPetId = findByPet
+
+export const countByPetId = async (petId: string) => {
+  const db = getLocalDb()
+  const [result] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(medicalRecords)
+    .where(eq(medicalRecords.pet_id, petId))
+  return result?.count || 0
 }

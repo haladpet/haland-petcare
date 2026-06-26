@@ -235,8 +235,9 @@ export function validateBody<T>(
     return { valid: false, error: 'Request body must be a JSON object', missingFields: requiredFields }
   }
 
+  const record = body as Record<string, unknown>
   const missingFields = requiredFields.filter((field) => {
-    const value = body[field]
+    const value = record[field]
     return value === undefined || value === null || value === ''
   })
 

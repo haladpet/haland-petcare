@@ -2,7 +2,7 @@ import { verifyToken } from './jwt'
 import { getLocalDb } from '@/lib/db/local/client'
 import { localSessions } from '@/lib/db/local/schema'
 import { eq, and, sql } from 'drizzle-orm'
-import { createHash, createHmac, randomBytes, timingSafeEqual } from 'crypto'
+import { createHash, createHmac, randomBytes } from 'crypto'
 import { v4 as uuidv4 } from 'uuid'
 
 // ─── Configuration ───────────────────────────────────────────────

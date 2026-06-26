@@ -47,7 +47,7 @@ export const PERMISSION_MATRIX: Record<Role, Record<string, boolean>> = {
   },
 }
 
-export function hasPermission(role: Role, permission: string) {
+export function hasPermission(role: Role, permission: string): boolean {
   const rolePerms = PERMISSION_MATRIX[role]
   if (!rolePerms) return false
   return Boolean(rolePerms[permission])

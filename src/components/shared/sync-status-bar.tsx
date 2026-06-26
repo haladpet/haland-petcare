@@ -13,17 +13,17 @@ export default function SyncStatusBar() {
   }, [])
 
   const statusColor = state.isOnline
-    ? state.status === 'syncing'
+    ? state.status === 'running'
       ? 'bg-yellow-500'
-      : state.status === 'error'
+      : state.status === 'paused'
       ? 'bg-red-500'
       : 'bg-green-500'
     : 'bg-gray-400'
 
   const statusLabel = state.isOnline
-    ? state.status === 'syncing'
+    ? state.status === 'running'
       ? 'Syncing...'
-      : state.status === 'error'
+      : state.status === 'paused'
       ? 'Sync Error'
       : 'Online'
     : 'Offline'

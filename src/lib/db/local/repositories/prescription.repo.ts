@@ -52,6 +52,9 @@ export const findByPet = async (petId: string) => {
   return db.select().from(prescriptions).where(eq(prescriptions.pet_id, petId))
 }
 
+// Alias for API route compatibility
+export const findPrescriptionsByPetId = findByPet
+
 export const addPrescriptionItem = async (data: PrescriptionItemData) => {
   const db = getLocalDb()
   const id = uuidv4()

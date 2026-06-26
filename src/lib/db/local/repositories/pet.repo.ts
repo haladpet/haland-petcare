@@ -3,7 +3,7 @@ import { pets } from '@/lib/db/local/schema'
 import { v4 as uuidv4 } from 'uuid'
 import { writeToSyncQueue } from '@/lib/sync/queue'
 import { writeAuditLog } from '@/lib/db/server/audit'
-import { eq } from 'drizzle-orm'
+import { eq, like, or, sql } from 'drizzle-orm'
 
 interface PetData {
   customer_id?: string
@@ -56,4 +56,41 @@ export const findById = async (id: string) => {
 export const findByCustomer = async (customerId: string) => {
   const db = getLocalDb()
   return db.select().from(pets).where(eq(pets.customer_id, customerId))
+}
+
+export const search = async (query: string, page: number = 1, limit: number = 20) => {
+  const db = getLocalDb()
+  const offset = (page - 1) * limit
+  const searchPattern = `%${query}%`
+
+  const results = await db
+    .select()
+    .from(pets)
+    .where(
+      or(
+        like(pets.name, searchPattern),
+        like(pets.breed, searchPattern),
+        like(pets.species, searchPattern)
+      )
+    )
+    .limit(limit)
+    .offset(offset)
+
+  const [countResult] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(pets)
+    .where(
+      or(
+        like(pets.name, searchPattern),
+        like(pets.breed, searchPattern),
+        like(pets.species, searchPattern)
+      )
+    )
+
+  return {
+    data: results,
+    total: countResult?.count || 0,
+    page,
+    limit,
+  }
 }

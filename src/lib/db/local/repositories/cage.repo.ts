@@ -42,3 +42,8 @@ export const findByClinic = async (clinicId: string) => {
   const db = getLocalDb()
   return db.select().from(cages).where(eq(cages.clinic_id, clinicId))
 }
+
+export const findAll = async () => {
+  const db = getLocalDb()
+  return db.select().from(cages)
+}

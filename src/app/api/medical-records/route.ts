@@ -17,7 +17,7 @@ const getHandler = withPermission('medical_records')(async function handler(req:
   }
 
   const [records, total] = await Promise.all([
-    findByPetId(petId, page, limit),
+    findByPetId(petId),
     countByPetId(petId),
   ])
 
@@ -39,7 +39,11 @@ const postHandler = withPermission('medical_records')(async function handler(req
       headers: { 'Content-Type': 'application/json' },
     })
   }
-  const record = await createMedicalRecord(parsed.data)
+  const data = {
+    ...parsed.data,
+    visit_date: parsed.data.visit_date ? new Date(parsed.data.visit_date) : undefined,
+  }
+  const record = await createMedicalRecord(data)
   return new Response(JSON.stringify({ data: record }), {
     status: 201,
     headers: { 'Content-Type': 'application/json' },

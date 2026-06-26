@@ -15,9 +15,12 @@ export function getLocalDb(): LocalDatabase {
   return localDb;
 }
 
-export function getLocalClient() {
+export function getLocalClient(): PGlite {
   if (!localClient) {
     getLocalDb(); // Ensure client is initialized
   }
-  return localClient!;
+  if (!localClient) {
+    throw new Error("Failed to initialize local database client");
+  }
+  return localClient;
 }

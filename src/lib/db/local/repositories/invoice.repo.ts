@@ -1,9 +1,9 @@
 import { getLocalDb } from '@/lib/db/local/client'
-import { invoices, invoiceItems } from '@/lib/db/local/schema'
+import { invoices, invoiceItems, medicalRecords } from '@/lib/db/local/schema'
 import { v4 as uuidv4 } from 'uuid'
 import { writeToSyncQueue } from '@/lib/sync/queue'
 import { writeAuditLog } from '@/lib/db/server/audit'
-import { eq } from 'drizzle-orm'
+import { eq, desc } from 'drizzle-orm'
 
 interface InvoiceData {
   clinic_id?: string
@@ -41,6 +41,15 @@ export const updateInvoice = async (id: string, patch: InvoiceData) => {
   return { id, ...updated }
 }
 
+export const updateInvoiceStatus = async (id: string, status: string) => {
+  const db = getLocalDb()
+  const updated = { status, updated_at: new Date() }
+  await db.update(invoices).set(updated).where(eq(invoices.id, id))
+  writeToSyncQueue('invoices', id, 'UPDATE', updated)
+  writeAuditLog({ action: 'UPDATE_INVOICE_STATUS', user_id: null, clinic_id: null, status: 'INFO', details: { id, status } })
+  return { id, ...updated }
+}
+
 export const findInvoiceById = async (id: string) => {
   const db = getLocalDb()
   const res = await db.select().from(invoices).where(eq(invoices.id, id)).limit(1)
@@ -52,10 +61,47 @@ export const findByCustomer = async (customerId: string) => {
   return db.select().from(invoices).where(eq(invoices.customer_id, customerId))
 }
 
+// Alias for API route compatibility
+export const findInvoicesByCustomer = findByCustomer
+
 export const addInvoiceItem = async (data: InvoiceItemData) => {
   const db = getLocalDb()
   const id = uuidv4()
   const record = { id, ...data }
   await db.insert(invoiceItems).values(record)
   return record
+}
+
+export const buildInvoiceFromMedicalRecord = async (medicalRecordId: string, clinicId: string, customerId: string) => {
+  const db = getLocalDb()
+
+  // Get the medical record
+  const [record] = await db
+    .select()
+    .from(medicalRecords)
+    .where(eq(medicalRecords.id, medicalRecordId))
+    .limit(1)
+
+  if (!record) throw new Error('Medical record not found')
+
+  // Create invoice
+  const invoiceId = uuidv4()
+  const invoiceRecord = {
+    id: invoiceId,
+    clinic_id: clinicId,
+    customer_id: customerId,
+    appointment_id: null,
+    total_amount: '0',
+    status: 'PENDING',
+    issued_at: new Date(),
+    due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+    created_at: new Date(),
+    updated_at: new Date(),
+  }
+
+  await db.insert(invoices).values(invoiceRecord)
+  writeToSyncQueue('invoices', invoiceId, 'CREATE', invoiceRecord)
+  writeAuditLog({ action: 'BUILD_INVOICE_FROM_MEDICAL_RECORD', user_id: null, clinic_id: clinicId, status: 'INFO', details: { invoiceId, medicalRecordId } })
+
+  return invoiceRecord
 }

@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, randomBytes, createHash, scryptSync } from 'crypto'
+import { createCipheriv, createDecipheriv, randomBytes, createHash, pbkdf2Sync } from 'crypto'
 
 // ─── Configuration ───────────────────────────────────────────────
 const ALGORITHM = 'aes-256-gcm'
@@ -7,6 +7,7 @@ const AUTH_TAG_LENGTH = 16 // 128-bit auth tag
 const KEY_LENGTH = 32 // 256-bit key
 const SALT_LENGTH = 32
 const PBKDF2_ITERATIONS = 100000
+const PBKDF2_DIGEST = 'sha512'
 
 /**
  * Local Database Encryption
@@ -30,11 +31,12 @@ export function deriveEncryptionKey(
   salt?: Buffer
 ): { key: Buffer; salt: Buffer } {
   const actualSalt = salt || randomBytes(SALT_LENGTH)
-  const key = scryptSync(
+  const key = pbkdf2Sync(
     deviceSecret + sessionToken,
     actualSalt,
+    PBKDF2_ITERATIONS,
     KEY_LENGTH,
-    { N: PBKDF2_ITERATIONS, r: 8, p: 1 }
+    PBKDF2_DIGEST
   )
   return { key, salt: actualSalt }
 }
@@ -86,7 +88,7 @@ export interface EncryptedData {
  * @returns EncryptedData object with all necessary components for decryption
  */
 export function encryptSensitiveData(
-  plaintext: any,
+  plaintext: unknown,
   key: Buffer,
   salt: Buffer
 ): EncryptedData {
@@ -125,7 +127,7 @@ export function encryptSensitiveData(
 export function decryptSensitiveData(
   encryptedData: EncryptedData,
   key: Buffer
-): any {
+): unknown {
   const iv = Buffer.from(encryptedData.iv, 'base64')
   const authTag = Buffer.from(encryptedData.authTag, 'base64')
   const encrypted = encryptedData.encrypted
@@ -153,7 +155,7 @@ export function decryptSensitiveData(
  * Used for medical records, invoices, payments, prescriptions.
  */
 export function encryptField(
-  value: any,
+  value: unknown,
   fieldName: string,
   key: Buffer,
   salt: Buffer
@@ -169,10 +171,10 @@ export function encryptField(
 export function decryptField(
   encryptedValue: string,
   key: Buffer
-): any {
+): unknown {
   const encryptedData: EncryptedData = JSON.parse(encryptedValue)
   const decrypted = decryptSensitiveData(encryptedData, key)
-  return decrypted.value
+  return (decrypted as Record<string, unknown>).value
 }
 
 // ─── Sensitive Data Classification ───────────────────────────────
@@ -209,12 +211,12 @@ export function isSensitiveField(entity: string, field: string): boolean {
  * Encrypt all sensitive fields in a record before storing locally.
  */
 export function encryptRecord(
-  record: Record<string, any>,
+  record: Record<string, unknown>,
   entity: string,
   key: Buffer,
   salt: Buffer
-): Record<string, any> {
-  const encrypted = { ...record }
+): Record<string, unknown> {
+  const encrypted: Record<string, unknown> = { ...record }
   const sensitiveFields = SENSITIVE_FIELDS[entity] || []
 
   for (const field of sensitiveFields) {
@@ -230,17 +232,17 @@ export function encryptRecord(
  * Decrypt all sensitive fields in a record after reading from local storage.
  */
 export function decryptRecord(
-  record: Record<string, any>,
+  record: Record<string, unknown>,
   entity: string,
   key: Buffer
-): Record<string, any> {
-  const decrypted = { ...record }
+): Record<string, unknown> {
+  const decrypted: Record<string, unknown> = { ...record }
   const sensitiveFields = SENSITIVE_FIELDS[entity] || []
 
   for (const field of sensitiveFields) {
     if (decrypted[field] != null && typeof decrypted[field] === 'string') {
       try {
-        decrypted[field] = decryptField(decrypted[field], key)
+        decrypted[field] = decryptField(decrypted[field] as string, key)
       } catch {
         // If decryption fails, keep the original value
         // This handles the case where data wasn't encrypted yet
