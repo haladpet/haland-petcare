@@ -1,19 +1,19 @@
-import { getLocalDb } from '@/lib/db/local/client'
-import { syncQueue } from '@/lib/db/local/schema'
-import { v4 as uuidv4 } from 'uuid'
+import { getLocalBrowserDb } from "@/lib/db/local/client.browser";
+import { syncQueue } from "@/lib/db/local/schema";
+import { v4 as uuidv4 } from "uuid";
 
 interface SyncQueuePayload {
-  [key: string]: unknown
+  [key: string]: unknown;
 }
 
 export const writeToSyncQueue = async (
   entity: string,
   entityId: string,
-  action: 'CREATE' | 'UPDATE' | 'DELETE',
+  action: "CREATE" | "UPDATE" | "DELETE",
   payload: SyncQueuePayload
 ) => {
-  const db = getLocalDb()
-  const id = uuidv4()
+  const db = getLocalBrowserDb();
+  const id = uuidv4();
   await db.insert(syncQueue).values({
     id,
     entity,
@@ -21,9 +21,9 @@ export const writeToSyncQueue = async (
     action,
     payload,
     schema_version: 1,
-    status: 'PENDING',
+    status: "PENDING",
     created_at: new Date(),
     updated_at: new Date(),
-  })
-  return id
-}
+  });
+  return id;
+};
