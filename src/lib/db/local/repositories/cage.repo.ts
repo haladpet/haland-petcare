@@ -17,7 +17,7 @@ export const createCage = async (data: CageData) => {
   const db = getLocalDb()
   const id = uuidv4()
   const record = { id, ...data, created_at: new Date(), updated_at: new Date() }
-  await db.insert(cages).values(record)
+  await db.insert(cages).values(record as any)
   writeToSyncQueue('cages', id, 'CREATE', record)
   writeAuditLog({ action: 'CREATE_CAGE', user_id: null, clinic_id: data.clinic_id || null, status: 'INFO', details: { id } })
   return record

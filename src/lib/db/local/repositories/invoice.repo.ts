@@ -26,7 +26,7 @@ export const createInvoice = async (data: InvoiceData) => {
   const db = getLocalDb()
   const id = uuidv4()
   const record = { id, ...data, issued_at: new Date(), created_at: new Date(), updated_at: new Date() }
-  await db.insert(invoices).values(record)
+  await db.insert(invoices).values(record as any)
   writeToSyncQueue('invoices', id, 'CREATE', record)
   writeAuditLog({ action: 'CREATE_INVOICE', user_id: null, clinic_id: data.clinic_id || null, status: 'INFO', details: { id } })
   return record
@@ -68,7 +68,7 @@ export const addInvoiceItem = async (data: InvoiceItemData) => {
   const db = getLocalDb()
   const id = uuidv4()
   const record = { id, ...data }
-  await db.insert(invoiceItems).values(record)
+  await db.insert(invoiceItems).values(record as any)
   return record
 }
 

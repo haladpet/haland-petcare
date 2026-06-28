@@ -19,7 +19,7 @@ export const createCustomer = async (data: CustomerData) => {
   const db = getLocalDb()
   const id = uuidv4()
   const record = { id, ...data, created_at: new Date(), updated_at: new Date() }
-  await db.insert(customers).values(record)
+  await db.insert(customers).values(record as any)
   // optimistic return
   writeToSyncQueue('customers', id, 'CREATE', record)
   writeAuditLog({ action: 'CREATE_CUSTOMER', user_id: null, clinic_id: data.clinic_id || null, status: 'INFO', details: { id } })

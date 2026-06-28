@@ -35,7 +35,7 @@ export const createInventoryItem = async (data: InventoryItemData) => {
   const db = getLocalDb()
   const id = uuidv4()
   const record = { id, ...data, created_at: new Date(), updated_at: new Date() }
-  await db.insert(inventoryItems).values(record)
+  await db.insert(inventoryItems).values(record as any)
   writeToSyncQueue('inventory_items', id, 'CREATE', record)
   writeAuditLog({ action: 'CREATE_INVENTORY_ITEM', user_id: null, clinic_id: data.clinic_id || null, status: 'INFO', details: { id } })
   return record
@@ -65,7 +65,7 @@ export const createBatch = async (data: InventoryBatchData) => {
   const db = getLocalDb()
   const id = uuidv4()
   const record = { id, ...data, created_at: new Date(), updated_at: new Date() }
-  await db.insert(inventoryBatches).values(record)
+  await db.insert(inventoryBatches).values(record as any)
   return record
 }
 
@@ -76,7 +76,7 @@ export const createTransaction = async (data: InventoryTransactionData) => {
   const db = getLocalDb()
   const id = uuidv4()
   const record = { id, ...data, created_at: new Date() }
-  await db.insert(inventoryTransactions).values(record)
+  await db.insert(inventoryTransactions).values(record as any)
   writeAuditLog({ action: 'INVENTORY_TRANSACTION', user_id: null, clinic_id: data.clinic_id || null, status: 'INFO', details: { id } })
   return record
 }

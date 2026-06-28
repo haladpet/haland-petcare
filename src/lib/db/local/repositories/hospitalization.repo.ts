@@ -34,7 +34,7 @@ export const createHospitalization = async (data: HospitalizationData) => {
   const db = getLocalDb()
   const id = uuidv4()
   const record = { id, ...data, created_at: new Date(), updated_at: new Date() }
-  await db.insert(hospitalizations).values(record)
+  await db.insert(hospitalizations).values(record as any)
   writeToSyncQueue('hospitalizations', id, 'CREATE', record)
   writeAuditLog({ action: 'CREATE_HOSPITALIZATION', user_id: null, clinic_id: data.clinic_id || null, status: 'INFO', details: { id } })
   return record
@@ -110,7 +110,7 @@ export const admitPatient = async (data: { clinic_id: string; customer_id: strin
     created_at: new Date(),
     updated_at: new Date(),
   }
-  await db.insert(hospitalizations).values(record)
+  await db.insert(hospitalizations).values(record as any)
   writeToSyncQueue('hospitalizations', id, 'CREATE', record)
   writeAuditLog({ action: 'ADMIT_PATIENT', user_id: null, clinic_id: data.clinic_id, status: 'INFO', details: { id } })
   return record
@@ -147,7 +147,7 @@ export const createMonitoringEntry = async (data: { hospitalization_id: string; 
     notes: data.notes || null,
     monitored_at: new Date(),
   }
-  await db.insert(hospitalizationMonitoring).values(record)
+  await db.insert(hospitalizationMonitoring).values(record as any)
   writeAuditLog({ action: 'CREATE_MONITORING_ENTRY', user_id: null, clinic_id: null, status: 'INFO', details: { id } })
   return record
 }
@@ -156,7 +156,7 @@ export const addRateHistory = async (data: RateHistoryData) => {
   const db = getLocalDb()
   const id = uuidv4()
   const record = { id, ...data, created_at: new Date() }
-  await db.insert(hospitalizationRateHistory).values(record)
+  await db.insert(hospitalizationRateHistory).values(record as any)
   return record
 }
 
@@ -164,7 +164,7 @@ export const addMonitoring = async (data: MonitoringData) => {
   const db = getLocalDb()
   const id = uuidv4()
   const record = { id, ...data }
-  await db.insert(hospitalizationMonitoring).values(record)
+  await db.insert(hospitalizationMonitoring).values(record as any)
   writeAuditLog({ action: 'ADD_MONITORING', user_id: null, clinic_id: null, status: 'INFO', details: { id } })
   return record
 }
@@ -187,7 +187,7 @@ export const updateDailyCost = async (id: string, dailyCost: string) => {
     effective_from: new Date(),
     created_at: new Date(),
   }
-  await db.insert(hospitalizationRateHistory).values(record)
+  await db.insert(hospitalizationRateHistory).values(record as any)
   writeAuditLog({ action: 'UPDATE_DAILY_COST', user_id: null, clinic_id: null, status: 'INFO', details: { id, dailyCost } })
   return record
 }

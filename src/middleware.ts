@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 
-const PUBLIC_PATHS = ['/login', '/register-clinic', '/api/auth/', '/api/_health']
+const PUBLIC_PATHS = ['/login', '/register-clinic', '/api/auth', '/api/_health']
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some(
@@ -30,6 +30,11 @@ export function middleware(request: NextRequest) {
   const isAuthenticated = Boolean(accessToken || refreshToken)
 
   if (!isPublicPath(pathname) && !isAuthenticated) {
+    // API routes return 401; page routes redirect to /login
+    if (pathname.startsWith('/api/')) {
+      const res = NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return setSecurityHeaders(res)
+    }
     const loginUrl = request.nextUrl.clone()
     loginUrl.pathname = '/login'
     const res = NextResponse.redirect(loginUrl)
