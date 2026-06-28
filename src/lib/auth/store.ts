@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { verifyToken } from "@/lib/auth/jwt";
+import { verifyTokenClient } from "@/lib/auth/jwt-client";
 import { getLocalBrowserDb } from "@/lib/db/local/client.browser";
 import { localUsers } from "@/lib/db/local/schema";
 import { eq } from "drizzle-orm";
@@ -31,6 +31,54 @@ type AuthState = {
   refreshSession: () => Promise<void>;
 };
 
+// ─── Cookie Helpers ─────────────────────────────────────────────
+function setCookie(name: string, value: string, maxAge: number) {
+  if (typeof document === "undefined") return;
+  document.cookie = `${name}=${encodeURIComponent(value)}; Path=/; SameSite=Strict; Max-Age=${maxAge}`;
+}
+
+function deleteCookie(name: string) {
+  if (typeof document === "undefined") return;
+  document.cookie = `${name}=; Path=/; SameSite=Strict; Max-Age=0`;
+}
+
+function getCookie(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+function parseUser(raw: string): User {
+  try {
+    return JSON.parse(raw) as User;
+  } catch {
+    return null;
+  }
+}
+
+// ─── Rehydrate from cookies + sessionStorage ────────────────────
+function rehydrate() {
+  if (typeof window === "undefined") return;
+
+  const accessToken = getCookie("_hp_at");
+  const refreshToken = getCookie("_hp_rt");
+  const rawUser = sessionStorage.getItem("_hp_user");
+
+  if (accessToken && refreshToken) {
+    const user = rawUser ? parseUser(rawUser) : null;
+    useAuthStore.setState({
+      user,
+      accessToken,
+      refreshToken,
+    });
+  }
+}
+
+// Auto-rehydrate on load
+if (typeof window !== "undefined") {
+  rehydrate();
+}
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   accessToken: null,
@@ -48,6 +96,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       sessionId: data.sessionId || null,
     });
 
+    // Persist to cookies (7 days max-age)
+    const maxAge = 7 * 24 * 60 * 60;
+    setCookie("_hp_at", data.accessToken, maxAge);
+    setCookie("_hp_rt", data.refreshToken, maxAge);
+
+    // Persist user to sessionStorage
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("_hp_user", JSON.stringify(data.user));
+    }
+
     if (data.user) {
       syncUserToLocalDb(data.user);
     }
@@ -64,6 +122,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }).catch(() => {
         // Ignore network errors during logout
       });
+    }
+
+    // Clear cookies
+    deleteCookie("_hp_at");
+    deleteCookie("_hp_rt");
+
+    // Clear sessionStorage
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem("_hp_user");
     }
 
     set({
@@ -111,7 +178,7 @@ if (typeof window !== "undefined") {
     const token = state.accessToken;
     if (!token) return;
 
-    const payload = await verifyToken(token);
+    const payload = await verifyTokenClient(token);
     if (!payload) {
       await state.refreshSession();
       return;

@@ -1,9 +1,5 @@
 import { SignJWT, jwtVerify, type JWTPayload } from 'jose'
-import { createHash, randomBytes } from 'crypto'
 import type { AuthPayload, Role } from '@/types/auth'
-import { getServerDb } from '@/lib/db/server/client'
-import { sessions, revokedTokens } from '@/lib/db/server/schema'
-import { eq, and, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 // ─── Configuration ───────────────────────────────────────────────
@@ -20,6 +16,20 @@ function getRefreshSecret() {
   const secret = process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET
   if (!secret) throw new Error('Missing JWT refresh secret')
   return new TextEncoder().encode(secret)
+}
+
+// Lazy server-only helpers (avoids pulling pg into client bundles)
+async function getServerOnlyDb() {
+  const { getServerDb } = await import('@/lib/db/server/client')
+  return getServerDb()
+}
+
+async function getServerSchema() {
+  return await import('@/lib/db/server/schema')
+}
+
+async function getDrizzleOrm() {
+  return await import('drizzle-orm')
 }
 
 // ─── Token Signing ───────────────────────────────────────────────
@@ -70,7 +80,7 @@ export async function signRefreshToken(payload: AuthPayload): Promise<{
     .setJti(uuidv4())
     .sign(key)
 
-  const hash = hashToken(token)
+  const hash = await hashToken(token)
 
   return { token, hash }
 }
@@ -88,10 +98,12 @@ export async function verifyToken(
     const key = getKey(secret)
     const { payload } = await jwtVerify(token, key)
 
-    // Check if token JTI has been revoked
+    // Check if token JTI has been revoked (server-only)
     const jti = payload.jti as string | undefined
-    if (jti) {
-      const db = getServerDb()
+    if (jti && typeof window === 'undefined') {
+      const { revokedTokens } = await getServerSchema()
+      const { eq } = await getDrizzleOrm()
+      const db = await getServerOnlyDb()
       const revoked = await db
         .select({ id: revokedTokens.id })
         .from(revokedTokens)
@@ -121,7 +133,9 @@ export async function createSession(params: {
   refreshToken: string
   sessionId: string
 }> {
-  const db = getServerDb()
+  const db = await getServerOnlyDb()
+  const { sessions } = await getServerSchema()
+
   const sessionId = uuidv4()
 
   // Create refresh token first
@@ -159,15 +173,142 @@ export async function createSession(params: {
   return { accessToken, refreshToken, sessionId }
 }
 
-/**
- * Refresh token rotation:
- * 1. Verify the old refresh token
- * 2. Revoke the old refresh token
- * 3. Issue a new refresh token
- * 4. Issue a new access token
- * 
- * This prevents refresh token reuse — each refresh token can only be used once.
- */
+export async function refreshSession(params: {
+  sessionId: string
+  newRefreshTokenHash: string
+  newAccessTokenJti: string
+  expiresAt: Date
+}): Promise<void> {
+  const db = await getServerOnlyDb()
+  const { sessions } = await getServerSchema()
+  const { eq } = await getDrizzleOrm()
+
+  await db
+    .update(sessions)
+    .set({
+      refresh_token_hash: params.newRefreshTokenHash,
+      access_token_jti: params.newAccessTokenJti,
+      expires_at: params.expiresAt,
+      last_activity_at: new Date(),
+      updated_at: new Date(),
+    })
+    .where(eq(sessions.id, params.sessionId))
+}
+
+export async function revokeSession(sessionId: string): Promise<void> {
+  const db = await getServerOnlyDb()
+  const { sessions } = await getServerSchema()
+  const { eq } = await getDrizzleOrm()
+
+  await db
+    .update(sessions)
+    .set({ is_active: false, updated_at: new Date() })
+    .where(eq(sessions.id, sessionId))
+}
+
+// ─── Batch Session Operations ────────────────────────────────────
+
+export async function invalidateAllUserSessions(userId: string): Promise<void> {
+  const db = await getServerOnlyDb()
+  const { sessions, revokedTokens } = await getServerSchema()
+  const { and, eq } = await getDrizzleOrm()
+
+  const userSessions = await db
+    .select()
+    .from(sessions)
+    .where(and(eq(sessions.user_id, userId), eq(sessions.is_active, true)))
+
+  for (const session of userSessions) {
+    await db.insert(revokedTokens).values({
+      id: uuidv4(),
+      token_jti: session.refresh_token_hash,
+      user_id: session.user_id,
+      revoked_at: new Date(),
+      reason: 'PASSWORD_CHANGE',
+      expires_at: session.expires_at,
+    })
+  }
+
+  await db
+    .update(sessions)
+    .set({ is_active: false, updated_at: new Date() })
+    .where(and(eq(sessions.user_id, userId), eq(sessions.is_active, true)))
+}
+
+export async function invalidateDeviceSessions(
+  userId: string,
+  deviceId: string
+): Promise<void> {
+  const db = await getServerOnlyDb()
+  const { sessions, revokedTokens } = await getServerSchema()
+  const { and, eq } = await getDrizzleOrm()
+
+  const deviceSessions = await db
+    .select()
+    .from(sessions)
+    .where(
+      and(
+        eq(sessions.user_id, userId),
+        eq(sessions.device_id, deviceId),
+        eq(sessions.is_active, true)
+      )
+    )
+
+  for (const session of deviceSessions) {
+    await db.insert(revokedTokens).values({
+      id: uuidv4(),
+      token_jti: session.refresh_token_hash,
+      user_id: session.user_id,
+      revoked_at: new Date(),
+      reason: 'DEVICE_UNREGISTERED',
+      expires_at: session.expires_at,
+    })
+  }
+
+  await db
+    .update(sessions)
+    .set({ is_active: false, updated_at: new Date() })
+    .where(
+      and(
+        eq(sessions.user_id, userId),
+        eq(sessions.device_id, deviceId),
+        eq(sessions.is_active, true)
+      )
+    )
+}
+
+export async function validateSession(
+  sessionId: string,
+  maxIdleMs: number = 8 * 60 * 60 * 1000 // 8 hours default
+): Promise<boolean> {
+  const db = await getServerOnlyDb()
+  const { sessions } = await getServerSchema()
+  const { eq } = await getDrizzleOrm()
+
+  const [session] = await db
+    .select()
+    .from(sessions)
+    .where(eq(sessions.id, sessionId))
+    .limit(1)
+
+  if (!session) return false
+  if (!session.is_active) return false
+  if (new Date(session.expires_at) < new Date()) return false
+
+  const idleTime = Date.now() - new Date(session.last_activity_at).getTime()
+  if (idleTime > maxIdleMs) return false
+
+  // Update last activity
+  await db
+    .update(sessions)
+    .set({ last_activity_at: new Date(), updated_at: new Date() })
+    .where(eq(sessions.id, sessionId))
+
+  return true
+}
+
+// ─── Token Rotation ────────────────────────────────────────────
+
 export async function rotateRefreshToken(
   oldRefreshToken: string
 ): Promise<{
@@ -175,7 +316,9 @@ export async function rotateRefreshToken(
   refreshToken: string
   sessionId: string
 } | null> {
-  const db = getServerDb()
+  const db = await getServerOnlyDb()
+  const { sessions, revokedTokens } = await getServerSchema()
+  const { eq } = await getDrizzleOrm()
 
   // Verify the old refresh token
   const payload = await verifyToken(oldRefreshToken, { refresh: true })
@@ -253,7 +396,9 @@ export async function rotateRefreshToken(
  * Called on logout.
  */
 export async function invalidateSession(sessionId: string): Promise<void> {
-  const db = getServerDb()
+  const db = await getServerOnlyDb()
+  const { sessions, revokedTokens } = await getServerSchema()
+  const { eq } = await getDrizzleOrm()
 
   const [session] = await db
     .select()
@@ -261,182 +406,48 @@ export async function invalidateSession(sessionId: string): Promise<void> {
     .where(eq(sessions.id, sessionId))
     .limit(1)
 
-  if (!session) return
-
-  // Revoke the refresh token by its JTI (stored in access_token_jti or we use the hash)
-  // Since we don't have the JTI stored, we revoke by marking session inactive
-  // The refresh token hash is stored, but revokedTokens uses token_jti
-  // We'll insert a revocation record using the session's refresh_token_hash as the JTI
-  await db.insert(revokedTokens).values({
-    id: uuidv4(),
-    token_jti: session.refresh_token_hash,
-    user_id: session.user_id,
-    revoked_at: new Date(),
-    reason: 'LOGOUT',
-    expires_at: session.expires_at,
-  })
-
-  // Mark session as inactive
-  await db
-    .update(sessions)
-    .set({
-      is_active: false,
-      updated_at: new Date(),
-    })
-    .where(eq(sessions.id, sessionId))
-}
-
-/**
- * Revoke a specific access token.
- * Used when a token needs to be invalidated before its natural expiry.
- */
-export async function revokeAccessToken(token: string, reason: string = 'MANUAL'): Promise<void> {
-  const db = getServerDb()
-  const payload = await verifyToken(token)
-  if (!payload) return
-
-  const jti = payload.jti
-  if (!jti) return
-
-  await db.insert(revokedTokens).values({
-    id: uuidv4(),
-    token_jti: jti,
-    user_id: payload.userId,
-    revoked_at: new Date(),
-    reason,
-    expires_at: new Date(payload.exp! * 1000),
-  })
-}
-
-/**
- * Invalidate all sessions for a user.
- * Used when password is changed or account is compromised.
- */
-export async function invalidateAllUserSessions(userId: string): Promise<void> {
-  const db = getServerDb()
-
-  const userSessions = await db
-    .select()
-    .from(sessions)
-    .where(and(eq(sessions.user_id, userId), eq(sessions.is_active, true)))
-
-  for (const session of userSessions) {
+  if (session) {
     await db.insert(revokedTokens).values({
       id: uuidv4(),
       token_jti: session.refresh_token_hash,
       user_id: session.user_id,
       revoked_at: new Date(),
-      reason: 'PASSWORD_CHANGE',
+      reason: 'LOGOUT',
       expires_at: session.expires_at,
     })
+
+    await db
+      .update(sessions)
+      .set({ is_active: false, updated_at: new Date() })
+      .where(eq(sessions.id, sessionId))
   }
-
-  await db
-    .update(sessions)
-    .set({ is_active: false, updated_at: new Date() })
-    .where(and(eq(sessions.user_id, userId), eq(sessions.is_active, true)))
-}
-
-/**
- * Invalidate all sessions for a specific device.
- * Used when a device is unregistered.
- */
-export async function invalidateDeviceSessions(
-  userId: string,
-  deviceId: string
-): Promise<void> {
-  const db = getServerDb()
-
-  const deviceSessions = await db
-    .select()
-    .from(sessions)
-    .where(
-      and(
-        eq(sessions.user_id, userId),
-        eq(sessions.device_id, deviceId),
-        eq(sessions.is_active, true)
-      )
-    )
-
-  for (const session of deviceSessions) {
-    await db.insert(revokedTokens).values({
-      id: uuidv4(),
-      token_jti: session.refresh_token_hash,
-      user_id: session.user_id,
-      revoked_at: new Date(),
-      reason: 'DEVICE_UNREGISTERED',
-      expires_at: session.expires_at,
-    })
-  }
-
-  await db
-    .update(sessions)
-    .set({ is_active: false, updated_at: new Date() })
-    .where(
-      and(
-        eq(sessions.user_id, userId),
-        eq(sessions.device_id, deviceId),
-        eq(sessions.is_active, true)
-      )
-    )
-}
-
-/**
- * Validate that a session is still active.
- * Checks: not inactive, not expired, activity within max idle time.
- */
-export async function validateSession(
-  sessionId: string,
-  maxIdleMs: number = 8 * 60 * 60 * 1000 // 8 hours default
-): Promise<boolean> {
-  const db = getServerDb()
-
-  const [session] = await db
-    .select()
-    .from(sessions)
-    .where(eq(sessions.id, sessionId))
-    .limit(1)
-
-  if (!session) return false
-  if (!session.is_active) return false
-  if (new Date(session.expires_at) < new Date()) return false
-
-  const idleTime = Date.now() - new Date(session.last_activity_at).getTime()
-  if (idleTime > maxIdleMs) return false
-
-  // Update last activity
-  await db
-    .update(sessions)
-    .set({ last_activity_at: new Date(), updated_at: new Date() })
-    .where(eq(sessions.id, sessionId))
-
-  return true
 }
 
 // ─── Utility ─────────────────────────────────────────────────────
 
-function hashToken(token: string): string {
-  return createHash('sha256').update(token).digest('hex')
+async function hashToken(token: string): Promise<string> {
+  const encoder = new TextEncoder()
+  const data = encoder.encode(token)
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
 }
 
-/**
- * Clean up expired revoked tokens.
- * Should be called periodically (e.g., daily cron).
- */
 export async function cleanupExpiredRevokedTokens(): Promise<number> {
-  const db = getServerDb()
+  const db = await getServerOnlyDb()
+  const { revokedTokens } = await getServerSchema()
+  const { sql } = await getDrizzleOrm()
   const result = await db
     .delete(revokedTokens)
     .where(sql`${revokedTokens.expires_at} < NOW()`)
   return result.rowCount || 0
 }
 
-/**
- * Clean up expired sessions.
- * Should be called periodically.
- */
 export async function cleanupExpiredSessions(): Promise<number> {
-  const db = getServerDb()
+  const db = await getServerOnlyDb()
+  const { sessions } = await getServerSchema()
+  const { sql } = await getDrizzleOrm()
   const result = await db
     .delete(sessions)
     .where(sql`${sessions.expires_at} < NOW()`)

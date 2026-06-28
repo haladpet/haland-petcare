@@ -60,17 +60,20 @@ export async function storeOfflineSession(params: {
   // Hash the device secret before storing
   const secretHash = await hashDeviceSecret(params.deviceSecret);
 
+  // Compute and store the device fingerprint hash so we can verify it later
+  const fingerprintHash = await computeFingerprintHash(params.deviceId);
+
   // Remove any existing sessions for this device
   await db.delete(localSessions).where(eq(localSessions.device_id, params.deviceId));
 
-  // Store new session
+  // Store new session — token stores "secretHash:fingerprintHash"
   const expiresAt = new Date(Date.now() + MAX_OFFLINE_DAYS * 24 * 60 * 60 * 1000);
 
   await db.insert(localSessions).values({
     id: uuidv4(),
     user_id: params.userId,
     device_id: params.deviceId,
-    token: secretHash,
+    token: `${secretHash}:${fingerprintHash}`,
     expires_at: expiresAt,
     created_at: new Date(),
     updated_at: new Date(),
@@ -114,10 +117,15 @@ export async function attemptOfflineLogin(
 
     // Try each session — find one that matches the device fingerprint
     for (const session of sessions) {
+      // Extract fingerprint hash from token field (format: "secretHash:fingerprintHash")
+      const tokenParts = session.token.split(":");
+      const storedFingerprintHash = tokenParts.length >= 2 ? tokenParts[1] : session.token;
+
       // Verify device fingerprint matches
       const fingerprintValid = await verifyDeviceFingerprint(
         deviceFingerprint,
-        session.device_id
+        session.device_id,
+        storedFingerprintHash
       );
 
       if (!fingerprintValid) {
@@ -274,12 +282,42 @@ async function hashDeviceSecret(secret: string): Promise<string> {
 }
 
 /**
- * Verify that a device fingerprint matches the stored device ID.
- * Uses HMAC via Web Crypto API to prevent fingerprint spoofing.
+ * Compute a fingerprint hash for a given device ID.
+ * This uses the same local device secret to produce a deterministic hash.
+ */
+async function computeFingerprintHash(deviceId: string): Promise<string> {
+  const localSecret = getLocalDeviceSecret();
+  const encoder = new TextEncoder();
+  const keyData = encoder.encode(localSecret);
+
+  const key = await crypto.subtle.importKey(
+    "raw",
+    keyData,
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+
+  const signature = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    encoder.encode(deviceId)
+  );
+
+  return Array.from(new Uint8Array(signature))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/**
+ * Verify that a device fingerprint matches the stored fingerprint hash.
+ * The token field now stores "secretHash:fingerprintHash".
+ * We compare the HMAC of the provided fingerprint against the stored fingerprint hash.
  */
 async function verifyDeviceFingerprint(
   providedFingerprint: string,
-  storedDeviceId: string
+  storedDeviceId: string,
+  storedFingerprintHash: string
 ): Promise<boolean> {
   const localSecret = getLocalDeviceSecret();
   const encoder = new TextEncoder();
@@ -299,11 +337,11 @@ async function verifyDeviceFingerprint(
     encoder.encode(providedFingerprint)
   );
 
-  const expectedHash = Array.from(new Uint8Array(signature))
+  const computedHash = Array.from(new Uint8Array(signature))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
 
-  return timingSafeEqual(expectedHash, storedDeviceId);
+  return timingSafeEqual(computedHash, storedFingerprintHash);
 }
 
 /**
@@ -316,9 +354,14 @@ async function verifyDeviceSecretSignature(
   deviceId: string,
   userId: string
 ): Promise<boolean> {
+  // The stored hash is now in format "secretHash:fingerprintHash"
+  // Extract the secret hash part (first segment)
+  const tokenParts = storedHash.split(":");
+  const secretHash = tokenParts[0];
+
   // The stored hash is SHA-256(deviceSecret)
   // We verify it's a valid hash format (64 hex chars)
-  if (!/^[a-f0-9]{64}$/i.test(storedHash)) {
+  if (!/^[a-f0-9]{64}$/i.test(secretHash)) {
     return false;
   }
 
@@ -330,7 +373,7 @@ async function verifyDeviceSecretSignature(
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
 
-  return timingSafeEqual(storedHash, expectedHash);
+  return timingSafeEqual(secretHash, expectedHash);
 }
 
 /**

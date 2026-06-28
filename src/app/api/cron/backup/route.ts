@@ -1,4 +1,30 @@
 import { NextResponse } from 'next/server'
+import { getServerDb } from '@/lib/db/server/client'
+import {
+  clinics,
+  customers,
+  pets,
+  medicalRecords,
+  prescriptions,
+  prescriptionItems,
+  medicines,
+  cages,
+  hospitalizations,
+  hospitalizationRateHistory,
+  hospitalizationMonitoring,
+  inventoryItems,
+  inventoryBatches,
+  inventoryTransactions,
+  invoices,
+  invoiceItems,
+  payments,
+  auditLogs,
+  syncQueue,
+  conflictQueue,
+  serverUsers,
+  devices,
+  sessions,
+} from '@/lib/db/server/schema'
 
 // Cron job: Daily backup at 02:00
 // Triggered by Vercel Cron Jobs (vercel.json)
@@ -16,46 +42,117 @@ export async function GET(req: Request) {
   }
 
   try {
-    // In production, this would connect to Supabase and dump data
-    // For now, we log the backup event
+    const db = getServerDb()
     const timestamp = new Date().toISOString()
-    const backupLog = {
+
+    const [
+      clinicsData,
+      customersData,
+      petsData,
+      medicalRecordsData,
+      prescriptionsData,
+      prescriptionItemsData,
+      medicinesData,
+      cagesData,
+      hospitalizationsData,
+      hospitalizationRateHistoryData,
+      hospitalizationMonitoringData,
+      inventoryItemsData,
+      inventoryBatchesData,
+      inventoryTransactionsData,
+      invoicesData,
+      invoiceItemsData,
+      paymentsData,
+      auditLogsData,
+      syncQueueData,
+      conflictQueueData,
+      usersData,
+      devicesData,
+      sessionsData,
+    ] = await Promise.all([
+      db.select().from(clinics),
+      db.select().from(customers),
+      db.select().from(pets),
+      db.select().from(medicalRecords),
+      db.select().from(prescriptions),
+      db.select().from(prescriptionItems),
+      db.select().from(medicines),
+      db.select().from(cages),
+      db.select().from(hospitalizations),
+      db.select().from(hospitalizationRateHistory),
+      db.select().from(hospitalizationMonitoring),
+      db.select().from(inventoryItems),
+      db.select().from(inventoryBatches),
+      db.select().from(inventoryTransactions),
+      db.select().from(invoices),
+      db.select().from(invoiceItems),
+      db.select().from(payments),
+      db.select().from(auditLogs),
+      db.select().from(syncQueue),
+      db.select().from(conflictQueue),
+      db.select().from(serverUsers),
+      db.select().from(devices),
+      db.select().from(sessions),
+    ])
+
+    const backup = {
       timestamp,
-      status: 'INITIATED',
-      message: 'Daily backup triggered via cron',
-      tables: [
-        'clinics',
-        'customers',
-        'pets',
-        'medical_records',
-        'prescriptions',
-        'prescription_items',
-        'medicines',
-        'cages',
-        'hospitalizations',
-        'hospitalization_rate_history',
-        'hospitalization_monitoring',
-        'inventory_items',
-        'inventory_batches',
-        'inventory_transactions',
-        'invoices',
-        'invoice_items',
-        'payments',
-        'audit_logs',
-        'sync_queue',
-        'conflict_queue',
-      ],
+      status: 'COMPLETED',
+      tables: {
+        clinics: clinicsData.length,
+        customers: customersData.length,
+        pets: petsData.length,
+        medical_records: medicalRecordsData.length,
+        prescriptions: prescriptionsData.length,
+        prescription_items: prescriptionItemsData.length,
+        medicines: medicinesData.length,
+        cages: cagesData.length,
+        hospitalizations: hospitalizationsData.length,
+        hospitalization_rate_history: hospitalizationRateHistoryData.length,
+        hospitalization_monitoring: hospitalizationMonitoringData.length,
+        inventory_items: inventoryItemsData.length,
+        inventory_batches: inventoryBatchesData.length,
+        inventory_transactions: inventoryTransactionsData.length,
+        invoices: invoicesData.length,
+        invoice_items: invoiceItemsData.length,
+        payments: paymentsData.length,
+        audit_logs: auditLogsData.length,
+        sync_queue: syncQueueData.length,
+        conflict_queue: conflictQueueData.length,
+        server_users: usersData.length,
+        devices: devicesData.length,
+        sessions: sessionsData.length,
+      },
+      data: {
+        clinics: clinicsData,
+        customers: customersData,
+        pets: petsData,
+        medical_records: medicalRecordsData,
+        prescriptions: prescriptionsData,
+        prescription_items: prescriptionItemsData,
+        medicines: medicinesData,
+        cages: cagesData,
+        hospitalizations: hospitalizationsData,
+        hospitalization_rate_history: hospitalizationRateHistoryData,
+        hospitalization_monitoring: hospitalizationMonitoringData,
+        inventory_items: inventoryItemsData,
+        inventory_batches: inventoryBatchesData,
+        inventory_transactions: inventoryTransactionsData,
+        invoices: invoicesData,
+        invoice_items: invoiceItemsData,
+        payments: paymentsData,
+        audit_logs: auditLogsData,
+        sync_queue: syncQueueData,
+        conflict_queue: conflictQueueData,
+        server_users: usersData,
+        devices: devicesData,
+        sessions: sessionsData,
+      },
     }
 
-    // In production, this would:
-    // 1. Connect to Supabase
-    // 2. Export each table to JSON/CSV
-    // 3. Upload to S3/GCS backup bucket
-    // 4. Log backup completion
+    console.log('[CRON:BACKUP]', JSON.stringify({ timestamp, status: 'COMPLETED', tableCounts: backup.tables }))
 
-    console.log('[CRON:BACKUP]', JSON.stringify(backupLog))
-
-    return new Response(JSON.stringify({ success: true, backup: backupLog }), {
+    return new Response(JSON.stringify(backup), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     })

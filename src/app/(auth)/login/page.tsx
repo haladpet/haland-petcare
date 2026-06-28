@@ -32,7 +32,7 @@ export default function LoginPage() {
       }
       login({ user: data.user, accessToken: data.accessToken, refreshToken: data.refreshToken, deviceId: data.deviceId })
       await syncUserToLocalDb(data.user)
-      router.push('/dashboard')
+      router.push('/')
     } catch (err: any) {
       setError(String(err))
     } finally {

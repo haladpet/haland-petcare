@@ -1,44 +1,112 @@
-import { createCipheriv, createDecipheriv, randomBytes, createHash, pbkdf2Sync } from 'crypto'
-
 // ─── Configuration ───────────────────────────────────────────────
-const ALGORITHM = 'aes-256-gcm'
-const IV_LENGTH = 16 // 128-bit IV for GCM
-const AUTH_TAG_LENGTH = 16 // 128-bit auth tag
-const KEY_LENGTH = 32 // 256-bit key
+const IV_LENGTH = 12 // 96-bit IV for AES-GCM (recommended by NIST)
 const SALT_LENGTH = 32
 const PBKDF2_ITERATIONS = 100000
-const PBKDF2_DIGEST = 'sha512'
 
 /**
- * Local Database Encryption
- * 
+ * Local Database Encryption (Web Crypto API)
+ *
  * All sensitive data (medical records, invoices, payments, prescriptions)
  * is encrypted using AES-256-GCM before being stored in the local PGlite database.
- * 
+ *
  * Key derivation uses PBKDF2 with a device-derived key and session-protected salt.
  * The encryption key is never stored in plaintext.
  */
 
+// ─── Helpers ────────────────────────────────────────────────────
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer)
+  let binary = ''
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i])
+  }
+  return btoa(binary)
+}
+
+function base64ToArrayBuffer(base64: string): ArrayBuffer {
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i)
+  }
+  return bytes.buffer
+}
+
+function getRandomBytes(length: number): Uint8Array {
+  return crypto.getRandomValues(new Uint8Array(length))
+}
+
 // ─── Key Management ──────────────────────────────────────────────
+
+/**
+ * Derive an encryption key from a password using PBKDF2.
+ * Returns a CryptoKey suitable for AES-GCM encrypt/decrypt.
+ */
+export async function deriveKey(
+  password: string,
+  salt?: Uint8Array
+): Promise<{ key: CryptoKey; salt: Uint8Array }> {
+  const actualSalt = salt || getRandomBytes(SALT_LENGTH)
+
+  const encoder = new TextEncoder()
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(password),
+    'PBKDF2',
+    false,
+    ['deriveKey']
+  )
+
+  const key = await crypto.subtle.deriveKey(
+    {
+      name: 'PBKDF2',
+      salt: actualSalt as unknown as BufferSource,
+      iterations: PBKDF2_ITERATIONS,
+      hash: 'SHA-512',
+    },
+    keyMaterial,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt']
+  )
+
+  return { key, salt: actualSalt }
+}
 
 /**
  * Derive an encryption key from a device secret and session token.
  * Uses PBKDF2 with 100,000 iterations for key stretching.
+ * Returns raw bytes (Uint8Array) for key and salt.
  */
-export function deriveEncryptionKey(
+export async function deriveEncryptionKey(
   deviceSecret: string,
   sessionToken: string,
-  salt?: Buffer
-): { key: Buffer; salt: Buffer } {
-  const actualSalt = salt || randomBytes(SALT_LENGTH)
-  const key = pbkdf2Sync(
-    deviceSecret + sessionToken,
-    actualSalt,
-    PBKDF2_ITERATIONS,
-    KEY_LENGTH,
-    PBKDF2_DIGEST
+  salt?: Uint8Array
+): Promise<{ key: Uint8Array; salt: Uint8Array }> {
+  const actualSalt = salt || getRandomBytes(SALT_LENGTH)
+
+  const encoder = new TextEncoder()
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(deviceSecret + sessionToken),
+    'PBKDF2',
+    false,
+    ['deriveBits']
   )
-  return { key, salt: actualSalt }
+
+  const bits = await crypto.subtle.deriveBits(
+    {
+      name: 'PBKDF2',
+      salt: actualSalt as unknown as BufferSource,
+      iterations: PBKDF2_ITERATIONS,
+      hash: 'SHA-512',
+    },
+    keyMaterial,
+    256 // 32 bytes
+  )
+
+  return { key: new Uint8Array(bits), salt: actualSalt }
 }
 
 /**
@@ -60,13 +128,25 @@ export function getDeviceDerivedKey(sessionToken: string): string {
     navigator.userAgent || 'unknown',
   ]
 
-  const deviceFingerprint = createHash('sha256')
-    .update(components.join('|'))
-    .digest('hex')
+  const str = components.join('|')
+  let hash = 0
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i)
+    hash = (hash << 5) - hash + char
+    hash |= 0
+  }
 
-  return createHash('sha256')
-    .update(deviceFingerprint + sessionToken)
-    .digest('hex')
+  const fingerprint = Math.abs(hash).toString(16).padStart(8, '0') + '0'.repeat(56)
+
+  let combined = 0
+  const combinedStr = fingerprint + sessionToken
+  for (let i = 0; i < combinedStr.length; i++) {
+    const char = combinedStr.charCodeAt(i)
+    combined = (combined << 5) - combined + char
+    combined |= 0
+  }
+
+  return Math.abs(combined).toString(16).padStart(8, '0') + '0'.repeat(56)
 }
 
 // ─── Encryption ──────────────────────────────────────────────────
@@ -80,67 +160,62 @@ export interface EncryptedData {
 }
 
 /**
- * Encrypt sensitive data using AES-256-GCM.
- * 
- * @param plaintext - The data to encrypt (will be JSON stringified if object)
- * @param key - The encryption key (Buffer)
- * @param salt - The salt used for key derivation
- * @returns EncryptedData object with all necessary components for decryption
+ * Encrypt data using AES-256-GCM via Web Crypto API.
  */
-export function encryptSensitiveData(
+export async function encryptData(
   plaintext: unknown,
-  key: Buffer,
-  salt: Buffer
-): EncryptedData {
-  // Convert to string if object
+  key: CryptoKey,
+  salt: Uint8Array
+): Promise<EncryptedData> {
   const data = typeof plaintext === 'string' ? plaintext : JSON.stringify(plaintext)
+  const encoder = new TextEncoder()
 
-  // Generate random IV
-  const iv = randomBytes(IV_LENGTH)
+  const iv = getRandomBytes(IV_LENGTH)
 
-  // Create cipher
-  const cipher = createCipheriv(ALGORITHM, key, iv)
+  const cipherBuffer = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv: iv as unknown as BufferSource },
+    key,
+    encoder.encode(data)
+  )
 
-  // Encrypt
-  let encrypted = cipher.update(data, 'utf8', 'base64')
-  encrypted += cipher.final('base64')
-
-  // Get auth tag
-  const authTag = cipher.getAuthTag()
+  const cipherBytes = new Uint8Array(cipherBuffer)
+  const tagLength = 16
+  const encrypted = cipherBytes.slice(0, cipherBytes.length - tagLength)
+  const authTag = cipherBytes.slice(cipherBytes.length - tagLength)
 
   return {
-    encrypted,
-    iv: iv.toString('base64'),
-    authTag: authTag.toString('base64'),
-    salt: salt.toString('base64'),
-    algorithm: ALGORITHM,
+    encrypted: arrayBufferToBase64(encrypted.buffer as ArrayBuffer),
+    iv: arrayBufferToBase64(iv.buffer as ArrayBuffer),
+    authTag: arrayBufferToBase64(authTag.buffer as ArrayBuffer),
+    salt: arrayBufferToBase64(salt.buffer as ArrayBuffer),
+    algorithm: 'aes-256-gcm',
   }
 }
 
 /**
- * Decrypt sensitive data that was encrypted with encryptSensitiveData.
- * 
- * @param encryptedData - The EncryptedData object from encryption
- * @param key - The encryption key (Buffer)
- * @returns The decrypted data (parsed from JSON if possible)
+ * Decrypt data using AES-256-GCM via Web Crypto API.
  */
-export function decryptSensitiveData(
+export async function decryptData(
   encryptedData: EncryptedData,
-  key: Buffer
-): unknown {
-  const iv = Buffer.from(encryptedData.iv, 'base64')
-  const authTag = Buffer.from(encryptedData.authTag, 'base64')
-  const encrypted = encryptedData.encrypted
+  key: CryptoKey
+): Promise<unknown> {
+  const iv = new Uint8Array(base64ToArrayBuffer(encryptedData.iv))
+  const encrypted = new Uint8Array(base64ToArrayBuffer(encryptedData.encrypted))
+  const authTag = new Uint8Array(base64ToArrayBuffer(encryptedData.authTag))
 
-  // Create decipher
-  const decipher = createDecipheriv(ALGORITHM, key, iv)
-  decipher.setAuthTag(authTag)
+  const cipherBuffer = new Uint8Array(encrypted.length + authTag.length)
+  cipherBuffer.set(encrypted, 0)
+  cipherBuffer.set(authTag, encrypted.length)
 
-  // Decrypt
-  let decrypted = decipher.update(encrypted, 'base64', 'utf8')
-  decrypted += decipher.final('utf8')
+  const plainBuffer = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv },
+    key,
+    cipherBuffer
+  )
 
-  // Try to parse as JSON
+  const decoder = new TextDecoder()
+  const decrypted = decoder.decode(plainBuffer)
+
   try {
     return JSON.parse(decrypted)
   } catch {
@@ -148,45 +223,67 @@ export function decryptSensitiveData(
   }
 }
 
-// ─── Field-Level Encryption Helpers ──────────────────────────────
+/**
+ * Encrypt sensitive data using AES-256-GCM.
+ * Convenience wrapper that accepts raw Uint8Array key.
+ */
+export async function encryptSensitiveData(
+  plaintext: unknown,
+  key: Uint8Array,
+  salt: Uint8Array
+): Promise<EncryptedData> {
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw',
+    key as unknown as BufferSource,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt']
+  )
+  return encryptData(plaintext, cryptoKey, salt)
+}
 
 /**
- * Encrypt a specific field value for storage in the local database.
- * Used for medical records, invoices, payments, prescriptions.
+ * Decrypt sensitive data that was encrypted with encryptSensitiveData.
+ * Convenience wrapper that accepts raw Uint8Array key.
  */
-export function encryptField(
+export async function decryptSensitiveData(
+  encryptedData: EncryptedData,
+  key: Uint8Array
+): Promise<unknown> {
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw',
+    key as unknown as BufferSource,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['decrypt']
+  )
+  return decryptData(encryptedData, cryptoKey)
+}
+
+// ─── Field-level Encryption ─────────────────────────────────────
+
+async function encryptField(
   value: unknown,
   fieldName: string,
-  key: Buffer,
-  salt: Buffer
-): string {
+  key: Uint8Array,
+  salt: Uint8Array
+): Promise<string> {
   const data = JSON.stringify({ field: fieldName, value, encryptedAt: new Date().toISOString() })
-  const encrypted = encryptSensitiveData(data, key, salt)
+  const encrypted = await encryptSensitiveData(data, key, salt)
   return JSON.stringify(encrypted)
 }
 
-/**
- * Decrypt a field value that was encrypted with encryptField.
- */
-export function decryptField(
+async function decryptField(
   encryptedValue: string,
-  key: Buffer
-): unknown {
+  key: Uint8Array
+): Promise<unknown> {
   const encryptedData: EncryptedData = JSON.parse(encryptedValue)
-  const decrypted = decryptSensitiveData(encryptedData, key)
+  const decrypted = await decryptSensitiveData(encryptedData, key)
   return (decrypted as Record<string, unknown>).value
 }
 
-// ─── Sensitive Data Classification ───────────────────────────────
+// ─── Sensitive Fields Configuration ─────────────────────────────
 
-/**
- * Fields that must be encrypted in the local database:
- * - medical_records: diagnosis, treatment, notes
- * - invoices: total_amount, items
- * - payments: amount, method
- * - prescriptions: notes, dosage instructions
- * - customers: email, phone, address
- */
 export const SENSITIVE_FIELDS: Record<string, string[]> = {
   medical_records: ['diagnosis', 'treatment', 'notes'],
   invoices: ['total_amount'],
@@ -198,51 +295,42 @@ export const SENSITIVE_FIELDS: Record<string, string[]> = {
   pets: ['name'],
 }
 
-/**
- * Check if a field should be encrypted based on entity and field name.
- */
 export function isSensitiveField(entity: string, field: string): boolean {
   const sensitiveFields = SENSITIVE_FIELDS[entity]
   if (!sensitiveFields) return false
   return sensitiveFields.includes(field)
 }
 
-/**
- * Encrypt all sensitive fields in a record before storing locally.
- */
-export function encryptRecord(
+export async function encryptRecord(
   record: Record<string, unknown>,
   entity: string,
-  key: Buffer,
-  salt: Buffer
-): Record<string, unknown> {
+  key: Uint8Array,
+  salt: Uint8Array
+): Promise<Record<string, unknown>> {
   const encrypted: Record<string, unknown> = { ...record }
   const sensitiveFields = SENSITIVE_FIELDS[entity] || []
 
   for (const field of sensitiveFields) {
     if (encrypted[field] != null) {
-      encrypted[field] = encryptField(encrypted[field], field, key, salt)
+      encrypted[field] = await encryptField(encrypted[field], field, key, salt)
     }
   }
 
   return encrypted
 }
 
-/**
- * Decrypt all sensitive fields in a record after reading from local storage.
- */
-export function decryptRecord(
+export async function decryptRecord(
   record: Record<string, unknown>,
   entity: string,
-  key: Buffer
-): Record<string, unknown> {
+  key: Uint8Array
+): Promise<Record<string, unknown>> {
   const decrypted: Record<string, unknown> = { ...record }
   const sensitiveFields = SENSITIVE_FIELDS[entity] || []
 
   for (const field of sensitiveFields) {
     if (decrypted[field] != null && typeof decrypted[field] === 'string') {
       try {
-        decrypted[field] = decryptField(decrypted[field] as string, key)
+        decrypted[field] = await decryptField(decrypted[field] as string, key)
       } catch {
         // If decryption fails, keep the original value
         // This handles the case where data wasn't encrypted yet
@@ -255,28 +343,21 @@ export function decryptRecord(
 
 // ─── Secure Key Storage ──────────────────────────────────────────
 
-/**
- * Store an encryption key securely in session storage.
- * The key is split into two parts stored separately.
- * Never stored in localStorage or plaintext.
- */
-export function storeEncryptionKey(key: Buffer, sessionId: string): void {
+export function storeEncryptionKey(key: Uint8Array, sessionId: string): void {
   if (typeof window === 'undefined') return
 
-  const keyHex = key.toString('hex')
+  const keyHex = Array.from(key)
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
   const midpoint = Math.floor(keyHex.length / 2)
   const part1 = keyHex.slice(0, midpoint)
   const part2 = keyHex.slice(midpoint)
 
-  // Store parts in sessionStorage (cleared on browser close)
   sessionStorage.setItem(`_ek1_${sessionId}`, part1)
   sessionStorage.setItem(`_ek2_${sessionId}`, part2)
 }
 
-/**
- * Retrieve the encryption key from secure storage.
- */
-export function retrieveEncryptionKey(sessionId: string): Buffer | null {
+export function retrieveEncryptionKey(sessionId: string): Uint8Array | null {
   if (typeof window === 'undefined') return null
 
   const part1 = sessionStorage.getItem(`_ek1_${sessionId}`)
@@ -285,13 +366,13 @@ export function retrieveEncryptionKey(sessionId: string): Buffer | null {
   if (!part1 || !part2) return null
 
   const keyHex = part1 + part2
-  return Buffer.from(keyHex, 'hex')
+  const bytes = new Uint8Array(keyHex.length / 2)
+  for (let i = 0; i < keyHex.length; i += 2) {
+    bytes[i / 2] = parseInt(keyHex.substring(i, i + 2), 16)
+  }
+  return bytes
 }
 
-/**
- * Clear the encryption key from storage.
- * Called on logout.
- */
 export function clearEncryptionKey(sessionId: string): void {
   if (typeof window === 'undefined') return
 
